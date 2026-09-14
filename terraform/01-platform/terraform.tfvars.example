@@ -1,0 +1,5 @@
+cloudflare_api_token  = "changeme"
+cloudflare_account_id = "changeme"
+cloudflare_zone_id    = "changeme"
+domain                = "example.com"
+cluster_name          = "lab"
