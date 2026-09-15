@@ -3,7 +3,7 @@ project: default
 source:
   repoURL: https://traefik.github.io/charts
   chart: traefik
-  targetRevision: "34.6.0" # проверьте актуальную: helm search repo traefik/traefik -l
+  targetRevision: "41.5.0" # проверьте актуальную: helm search repo traefik/traefik -l
   helm:
     values: |
       # Включаем Gateway API провайдер — дальше весь роутинг идёт через

@@ -1,7 +1,7 @@
 syncWave: "-1"
 project: default
 source:
-  repoURL: https://github.com/bohdan-ihnatenko/terraform-laba.git
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
   targetRevision: main
   path: gitops/vendor/gateway-api
 destination:

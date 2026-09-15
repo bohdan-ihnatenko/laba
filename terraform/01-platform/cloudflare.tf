@@ -29,6 +29,12 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab" {
         service  = "http://traefik.traefik.svc.cluster.local:80"
       },
       {
+        # Временно — прямо на argocd-server, пока не встал ingress-controller/Gateway API.
+        # Когда он появится, этот hostname просто переключится на его Service.
+        hostname = "argocd.${var.domain}"
+        service  = "http://argocd-server.argocd.svc.cluster.local:80"
+      },
+      {
         # catch-all — обязателен последним правилом, иначе провайдер ругнётся
         service = "http_status:404"
       },
@@ -39,6 +45,14 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab" {
 resource "cloudflare_dns_record" "wildcard" {
   zone_id = var.cloudflare_zone_id
   name    = "*"
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.lab.id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1 # 1 = "Auto", обязательно при proxied = true
+}
+resource "cloudflare_dns_record" "argocd" {
+  zone_id = var.cloudflare_zone_id
+  name    = "argocd"
   type    = "CNAME"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.lab.id}.cfargotunnel.com"
   proxied = true
