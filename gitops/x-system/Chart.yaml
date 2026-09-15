@@ -1,0 +1,8 @@
+apiVersion: v2
+name: x-system
+description: >-
+  App-of-apps: рендерит одну ArgoCD Application на каждый ключ из values.yaml.
+  Тот же паттерн, что и в gitops-lib — единая точка входа, дальше всё живёт
+  декларативно в values.yaml, без ручных kubectl apply / helm install.
+type: application
+version: 0.1.0

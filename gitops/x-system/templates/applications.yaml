@@ -1,0 +1,42 @@
+{{/*
+  Один файл в ../apps/*.yaml = одно ArgoCD Application. Имя приложения берётся
+  из имени файла (apps/vault.yaml -> "vault"). Хочешь добавить сервис — кладёшь
+  новый файл apps/<имя>.yaml, ничего в остальных файлах не трогаешь.
+*/}}
+{{- range $path, $_ := .Files.Glob "apps/*.yaml" }}
+{{- $app := $.Files.Get $path | fromYaml }}
+{{- $name := $path | base | trimSuffix ".yaml" }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $name }}
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ dig "project" "default" $app }}
+  source:
+    repoURL: {{ dig "source" "repoURL" "" $app | quote }}
+    targetRevision: {{ dig "source" "targetRevision" "HEAD" $app | quote }}
+    {{- with dig "source" "chart" "" $app }}
+    chart: {{ . }}
+    {{- end }}
+    {{- with dig "source" "path" "" $app }}
+    path: {{ . }}
+    {{- end }}
+    {{- with dig "source" "helm" "values" "" $app }}
+    helm:
+      values: |
+{{ . | indent 8 }}
+    {{- end }}
+  destination:
+    server: {{ dig "destination" "server" "https://kubernetes.default.svc" $app | quote }}
+    namespace: {{ dig "destination" "namespace" "" $app }}
+  syncPolicy:
+    automated:
+      prune: {{ dig "syncPolicy" "automated" "prune" true $app }}
+      selfHeal: {{ dig "syncPolicy" "automated" "selfHeal" true $app }}
+    syncOptions:
+      - CreateNamespace=true
+{{- end }}

@@ -1,0 +1,32 @@
+project: default
+source:
+  repoURL: https://helm.releases.hashicorp.com
+  chart: vault
+  targetRevision: "0.29.1" # проверьте актуальную: helm search repo hashicorp/vault -l
+  helm:
+    values: |
+      server:
+        dev:
+          enabled: false
+        standalone:
+          enabled: true
+          # tls_disable=true — тот же принцип, что и с ArgoCD/cloudflared:
+          # внешний TLS целиком на Cloudflare edge, внутри кластера — plain HTTP.
+          config: |
+            listener "tcp" {
+              address     = "0.0.0.0:8200"
+              tls_disable = true
+            }
+            storage "file" {
+              path = "/vault/data"
+            }
+        dataStorage:
+          enabled: true
+          size: 1Gi
+          storageClassName: local-path
+      # Agent Injector не нужен — секреты в поды будет тянуть External Secrets
+      # Operator через Vault API, а не через sidecar-инжект.
+      injector:
+        enabled: false
+destination:
+  namespace: vault
