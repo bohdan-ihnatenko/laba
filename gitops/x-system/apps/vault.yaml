@@ -5,8 +5,12 @@ source:
   targetRevision: "0.29.1" # проверьте актуальную: helm search repo hashicorp/vault -l
   helm:
     values: |
-      # По умолчанию у чарта UI выключен, а без него Vault не отвечает на "/"
-      # вообще ничем, кроме голого 404 — сам API (/v1/...) при этом работает.
+      # Верхнеуровневый ui.enabled ниже создаёт только k8s Service для UI —
+      # само включение UI внутри Vault делает строка "ui = true" в HCL-конфиге.
+      # Раз мы задаём server.standalone.config целиком сами (свой listener/
+      # storage), дефолтный конфиг чарта (где "ui = true" уже есть) не
+      # используется — поэтому её нужно прописать явно самим, иначе UI молчит
+      # независимо от ui.enabled.
       ui:
         enabled: true
       server:
@@ -17,6 +21,7 @@ source:
           # tls_disable=true — тот же принцип, что и с ArgoCD/cloudflared:
           # внешний TLS целиком на Cloudflare edge, внутри кластера — plain HTTP.
           config: |
+            ui = true
             listener "tcp" {
               address     = "0.0.0.0:8200"
               tls_disable = true
