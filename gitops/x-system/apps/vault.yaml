@@ -5,6 +5,10 @@ source:
   targetRevision: "0.29.1" # проверьте актуальную: helm search repo hashicorp/vault -l
   helm:
     values: |
+      # По умолчанию у чарта UI выключен, а без него Vault не отвечает на "/"
+      # вообще ничем, кроме голого 404 — сам API (/v1/...) при этом работает.
+      ui:
+        enabled: true
       server:
         dev:
           enabled: false
