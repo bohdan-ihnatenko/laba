@@ -1,0 +1,10 @@
+project: default
+source:
+  repoURL: https://charts.external-secrets.io
+  chart: external-secrets
+  targetRevision: "0.10.7" # проверьте актуальную: helm search repo external-secrets/external-secrets -l
+  helm:
+    values: |
+      installCRDs: true
+destination:
+  namespace: external-secrets

@@ -1,0 +1,28 @@
+syncWave: "0"
+project: default
+source:
+  repoURL: https://traefik.github.io/charts
+  chart: traefik
+  targetRevision: "34.6.0" # проверьте актуальную: helm search repo traefik/traefik -l
+  helm:
+    values: |
+      # Включаем Gateway API провайдер — дальше весь роутинг идёт через
+      # HTTPRoute-манифесты (gitops/routes/*.yaml), а не через Ingress.
+      # По умолчанию чарт сам создаст GatewayClass "traefik" и Gateway
+      # "traefik-gateway" в этом же неймспейсе — руками их не пишем.
+      providers:
+        kubernetesGateway:
+          enabled: true
+      gateway:
+        enabled: true
+        listeners:
+          web:
+            # По умолчанию Gateway принимает HTTPRoute только из своего же
+            # неймспейса (traefik) — а у нас каждый сервис держит свой route
+            # у себя (argocd/vault/...). Разрешаем маршруты из любого неймспейса.
+            namespacePolicy:
+              from: All
+      gatewayClass:
+        enabled: true
+destination:
+  namespace: traefik

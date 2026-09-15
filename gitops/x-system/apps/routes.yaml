@@ -1,0 +1,9 @@
+syncWave: "1"
+project: default
+source:
+  # ВАЖНО: тот же URL, что и gitops_repo_url в terraform.tfvars.
+  repoURL: https://github.com/bohdan-ihnatenko/terraform-laba.git
+  targetRevision: main
+  path: gitops/routes
+destination:
+  namespace: default

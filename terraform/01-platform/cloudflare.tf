@@ -1,5 +1,5 @@
 # Cloud-часть туннеля: сам объект туннеля, remote-управляемый ingress-конфиг
-# и DNS-запись. Домен на этот момент уже должен быть добавлен в Cloudflare
+# и DNS-записи. Домен на этот момент уже должен быть добавлен в Cloudflare
 # как Site (см. README) — иначе cloudflare_zone_id взять неоткуда.
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "lab" {
@@ -20,10 +20,13 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab" {
   config = {
     ingress = [
       {
-        # Временно — прямо на argocd-server, пока не встал ingress-controller/Gateway API.
-        # Когда он появится, этот hostname просто переключится на его Service.
-        hostname = "argocd.${var.domain}"
-        service  = "http://argocd-server.argocd.svc.cluster.local:80"
+        # ЕДИНСТВЕННОЕ ingress-правило, которое тут когда-либо должно быть.
+        # Весь HTTP-трафик на любой поддомен уходит в Gateway API (Traefik) —
+        # какой хостнейм на какой сервис, решает уже не Terraform, а
+        # HTTPRoute-манифесты в GitOps (gitops/routes/*.yaml). Новый сервис
+        # наружу — это git commit в routes/, а не terraform apply здесь.
+        hostname = "*.${var.domain}"
+        service  = "http://traefik.traefik.svc.cluster.local:80"
       },
       {
         # catch-all — обязателен последним правилом, иначе провайдер ругнётся
@@ -33,9 +36,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab" {
   }
 }
 
-resource "cloudflare_dns_record" "argocd" {
+resource "cloudflare_dns_record" "wildcard" {
   zone_id = var.cloudflare_zone_id
-  name    = "argocd"
+  name    = "*"
   type    = "CNAME"
   content = "${cloudflare_zero_trust_tunnel_cloudflared.lab.id}.cfargotunnel.com"
   proxied = true

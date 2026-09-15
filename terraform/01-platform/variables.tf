@@ -36,3 +36,15 @@ variable "cloudflared_image" {
   type        = string
   default     = "cloudflare/cloudflared:2024.12.2"
 }
+
+variable "vault_addr" {
+  description = "Адрес Vault API для vault-провайдера Terraform. По умолчанию localhost — перед apply, который трогает vault-провайдер, нужно руками поднять kubectl port-forward -n vault svc/vault 8200:8200 в отдельном терминале."
+  type        = string
+  default     = "http://127.0.0.1:8200"
+}
+
+variable "vault_root_token" {
+  description = "Root-токен из vault-init.json (ручной bootstrap, см. README) — нужен только для первичной настройки auth methods/policies, нигде постоянно не хранится, кроме tfstate этого модуля"
+  type        = string
+  sensitive   = true
+}

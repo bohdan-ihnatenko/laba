@@ -2,6 +2,9 @@
   Один файл в ../apps/*.yaml = одно ArgoCD Application. Имя приложения берётся
   из имени файла (apps/vault.yaml -> "vault"). Хочешь добавить сервис — кладёшь
   новый файл apps/<имя>.yaml, ничего в остальных файлах не трогаешь.
+
+  syncWave (необязательно) — порядок установки, когда важна очередность
+  (например, CRD Gateway API должны встать раньше самого Traefik).
 */}}
 {{- range $path, $_ := .Files.Glob "apps/*.yaml" }}
 {{- $app := $.Files.Get $path | fromYaml }}
@@ -12,6 +15,10 @@ kind: Application
 metadata:
   name: {{ $name }}
   namespace: argocd
+  {{- with dig "syncWave" "" $app }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ . | quote }}
+  {{- end }}
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -39,4 +46,7 @@ spec:
       selfHeal: {{ dig "syncPolicy" "automated" "selfHeal" true $app }}
     syncOptions:
       - CreateNamespace=true
+      {{- range dig "syncPolicy" "extraSyncOptions" (list) $app }}
+      - {{ . }}
+      {{- end }}
 {{- end }}

@@ -1,25 +1,4 @@
-# Локальный k3d-кластер. Официального стабильного Terraform-провайдера под k3d
-# нет (есть пара мелких community-провайдеров без гарантий), поэтому кластер
-# создаётся тем же способом, каким его создали бы руками — через k3d CLI,
-# обёрнутый в terraform_data + local-exec. Это осознанный компромисс, а не забытый TODO.
-#
-# Terraform (и сам k3d CLI) по-прежнему выполняются на этой машине — меняется
-# только то, к какому Docker-движку они стучатся. Если remote_docker_host
-# задан, DOCKER_HOST для local-exec указывает на удалённый движок (например,
-# домашний ноут по SSH) — контейнеры кластера реально создаются там. При этом
-# сам kubeconfig пишет CLI-процесс k3d, а он выполняется здесь же, на этой
-# машине — но чтобы не зависеть от того, что случайно лежит в переменной
-# окружения KUBECONFIG (например, если раньше кластер поднимался прямо на
-# домашнем ноуте и там же гулял смерженный kubeconfig), явно фиксируем целевой
-# файл через KUBECONFIG в local-exec и включаем
-# --kubeconfig-update-default/--kubeconfig-switch-context — контекст
-# гарантированно оказывается в kubeconfig именно этой машины.
-
 locals {
-  # Без этого k3s API слушает только на 127.0.0.1/внутреннем docker-адресе, и
-  # TLS-сертификат сервера не содержит адрес удалённой машины в SAN — kubectl
-  # с этой машины получит либо connection refused, либо x509: certificate is
-  # valid for ..., not <remote_api_host>.
   remote_api_flags = var.remote_api_host != "" ? "--api-port \"${var.remote_api_host}:6550\" --k3s-arg \"--tls-san=${var.remote_api_host}@server:0\"" : ""
 
   docker_env     = var.remote_docker_host != "" ? { DOCKER_HOST = var.remote_docker_host } : {}
@@ -49,6 +28,7 @@ resource "terraform_data" "k3d_cluster" {
         --agents 2 \
         --port "80:80@loadbalancer" \
         --port "443:443@loadbalancer" \
+        --k3s-arg "--disable=traefik@server:0" \
         --kubeconfig-update-default=true \
         --kubeconfig-switch-context=true \
         ${local.remote_api_flags} \

@@ -1,0 +1,14 @@
+syncWave: "-1"
+project: default
+source:
+  repoURL: https://github.com/bohdan-ihnatenko/terraform-laba.git
+  targetRevision: main
+  path: gitops/vendor/gateway-api
+destination:
+  namespace: gateway-api
+syncPolicy:
+  # Бандл CRD Gateway API большой — при обычном client-side apply легко
+  # упереться в лимит last-applied-configuration аннотации. ServerSideApply
+  # это обходит (и это официально рекомендуемый способ ставить эти CRD).
+  extraSyncOptions:
+    - ServerSideApply=true
