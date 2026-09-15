@@ -21,24 +21,6 @@ resource "kubernetes_secret" "tunnel_token" {
   }
 }
 
-# Тот же корпоративный CA, что рвал TLS для docker.io, режет и TLS от
-# cloudflared до Cloudflare edge — но это отдельный процесс со своим набором
-# доверенных сертификатов, никак не связанный с тем, что уже настроено на
-# уровне k3d-ноды в 00-cluster. Кладём CA как ConfigMap и говорим cloudflared
-# (это Go-бинарник) доверять именно ему через переменную окружения SSL_CERT_FILE.
-resource "kubernetes_config_map" "corporate_ca" {
-  count = var.corporate_ca_cert_path != "" ? 1 : 0
-
-  metadata {
-    name      = "corporate-ca"
-    namespace = kubernetes_namespace.cloudflared.metadata[0].name
-  }
-
-  data = {
-    "ca.crt" = file(var.corporate_ca_cert_path)
-  }
-}
-
 resource "kubernetes_deployment" "cloudflared" {
   metadata {
     name      = "cloudflared"
@@ -58,37 +40,10 @@ resource "kubernetes_deployment" "cloudflared" {
       }
 
       spec {
-        dynamic "volume" {
-          for_each = var.corporate_ca_cert_path != "" ? [1] : []
-          content {
-            name = "corporate-ca"
-            config_map {
-              name = kubernetes_config_map.corporate_ca[0].metadata[0].name
-            }
-          }
-        }
-
         container {
           name  = "cloudflared"
           image = var.cloudflared_image
           args  = ["tunnel", "--no-autoupdate", "--protocol", "http2", "run"]
-
-          dynamic "volume_mount" {
-            for_each = var.corporate_ca_cert_path != "" ? [1] : []
-            content {
-              name       = "corporate-ca"
-              mount_path = "/etc/cloudflared/certs"
-              read_only  = true
-            }
-          }
-
-          dynamic "env" {
-            for_each = var.corporate_ca_cert_path != "" ? [1] : []
-            content {
-              name  = "SSL_CERT_FILE"
-              value = "/etc/cloudflared/certs/ca.crt"
-            }
-          }
 
           env {
             name = "TUNNEL_TOKEN"

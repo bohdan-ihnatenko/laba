@@ -36,9 +36,3 @@ variable "cloudflared_image" {
   type        = string
   default     = "cloudflare/cloudflared:2024.12.2"
 }
-
-variable "corporate_ca_cert_path" {
-  description = "Абсолютный путь к корневому сертификату корпоративного CA (тот же файл, что и в 00-cluster). Пустая строка — не монтировать ничего."
-  type        = string
-  default     = "/Users/admina/ca_prizma.pem"
-}
