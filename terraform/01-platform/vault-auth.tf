@@ -1,9 +1,3 @@
-# Настройка самого Vault под ESO. Сознательно идёт через vault-провайдер
-# Terraform, а НЕ через ArgoCD/GitOps: сюда нужен root-токен от ручного
-# bootstrap'а (vault-init.json), а привилегированные креды в git не кладём —
-# тот же принцип, что и с самим init/unseal. Подключение — через
-# kubectl port-forward -n vault svc/vault 8200:8200 (см. variables.tf).
-
 resource "kubernetes_cluster_role_binding" "vault_tokenreview" {
   metadata {
     name = "vault-tokenreview-binding"
@@ -27,10 +21,6 @@ resource "vault_auth_backend" "kubernetes" {
 resource "vault_kubernetes_auth_backend_config" "this" {
   backend         = vault_auth_backend.kubernetes.path
   kubernetes_host = "https://kubernetes.default.svc"
-  # kubernetes_ca_cert / token_reviewer_jwt намеренно не заданы: Vault сам
-  # возьмёт их из смонтированного токена своего собственного пода — штатное
-  # поведение, когда Vault и есть под в том же кластере, который проверяет.
-
   depends_on = [kubernetes_cluster_role_binding.vault_tokenreview]
 }
 

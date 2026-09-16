@@ -6,5 +6,12 @@ source:
   helm:
     values: |
       installCRDs: true
+      # Без этого чарт называет ServiceAccount по схеме "<релиз>-<чарт>" —
+      # у нас релиз называется "eso" (по имени файла apps/eso.yaml), так что
+      # получилось бы "eso-external-secrets". А в vault-auth.tf (bound_service_
+      # account_names) и в ClusterSecretStore (serviceAccountRef.name) жёстко
+      # зашито "external-secrets" — фиксируем имя явно, чтобы всё совпадало.
+      serviceAccount:
+        name: external-secrets
 destination:
   namespace: external-secrets

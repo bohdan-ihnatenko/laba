@@ -38,9 +38,8 @@ variable "cloudflared_image" {
 }
 
 variable "vault_addr" {
-  description = "Адрес Vault API для vault-провайдера Terraform. По умолчанию localhost — перед apply, который трогает vault-провайдер, нужно руками поднять kubectl port-forward -n vault svc/vault 8200:8200 в отдельном терминале."
+  description = "Адрес Vault API для vault-провайдера Terraform — публичный адрес через Cloudflare Tunnel/Gateway API (тот же, что и в браузере), см. terraform.tfvars. Порт-форвард больше не нужен: Access перед Vault мы сознательно не ставили (лаба, не прод)."
   type        = string
-  default     = "http://127.0.0.1:8200"
 }
 
 variable "vault_root_token" {
