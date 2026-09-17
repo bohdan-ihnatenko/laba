@@ -32,33 +32,20 @@ source:
           enabled: true
           storageClassName: local-path
           size: 2Gi
-        # ВРЕМЕННО (lab-only): фиксируем admin-пароль явным значением вместо
-        # случайной генерации. Чарт по умолчанию генерирует admin-password
-        # заново при КАЖДОМ рендере Helm, и это значение попадает не только
-        # в Secret, но и хэшируется в pod-template аннотацию Deployment'а
-        # (checksum/secret) — из-за этого Deployment тоже вечно OutOfSync,
-        # а сама Grafana после каждого рестарта видит "новый" пароль и падает
-        # с 401 на внутренних вызовах /api/admin/provisioning/*/reload, потому
-        # что под капотом провижининг всё ещё аутентифицируется старым.
-        # Уберём, когда прикрутим ESO/Vault под Grafana (как для PetClinic).
-        adminPassword: "lab-grafana-admin-CHANGE-ME"
+        # Admin-креды больше не генерируются чартом и не лежат в git — их
+        # заводит ESO (gitops/manifests/grafana-external-secret.yaml) из
+        # Vault (secret/grafana) в Secret "grafana-admin-credentials".
+        # Раньше чарт сам генерировал admin-password/admin-user случайной
+        # строкой при каждом рендере, и это тянуло за собой вечный OutOfSync
+        # на Secret и на Deployment (через checksum/secret в pod-template) —
+        # existingSecret убирает эту случайность полностью, а не прячет её
+        # через ignoreDifferences.
+        admin:
+          existingSecret: grafana-admin-credentials
+          userKey: admin-user
+          passwordKey: admin-password
 destination:
   namespace: monitoring
 syncPolicy:
   extraSyncOptions:
     - ServerSideApply=true
-# Чарт генерирует admin-password/admin-user/ldap-toml случайной строкой при
-# КАЖДОМ рендере (а не один раз при первой установке) — ArgoCD из-за этого
-# вечно видит "разницу" между тем, что в кластере, и тем, что только что
-# нарендерил Helm. Говорим ArgoCD не сравнивать именно эти поля секрета —
-# как только он один раз создан, его реальное содержимое больше не трогаем.
-# Когда прикрутим ESO/Vault под Grafana (как для PetClinic), эта секция уйдёт.
-ignoreDifferences:
-  - group: ""
-    kind: Secret
-    name: kube-prometheus-stack-grafana
-    namespace: monitoring
-    jsonPointers:
-      - /data/admin-password
-      - /data/admin-user
-      - /data/ldap-toml
