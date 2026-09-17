@@ -34,3 +34,6 @@ source:
           size: 2Gi
 destination:
   namespace: monitoring
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true
