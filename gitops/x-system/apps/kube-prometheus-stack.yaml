@@ -32,6 +32,16 @@ source:
           enabled: true
           storageClassName: local-path
           size: 2Gi
+        # ВРЕМЕННО (lab-only): фиксируем admin-пароль явным значением вместо
+        # случайной генерации. Чарт по умолчанию генерирует admin-password
+        # заново при КАЖДОМ рендере Helm, и это значение попадает не только
+        # в Secret, но и хэшируется в pod-template аннотацию Deployment'а
+        # (checksum/secret) — из-за этого Deployment тоже вечно OutOfSync,
+        # а сама Grafana после каждого рестарта видит "новый" пароль и падает
+        # с 401 на внутренних вызовах /api/admin/provisioning/*/reload, потому
+        # что под капотом провижининг всё ещё аутентифицируется старым.
+        # Уберём, когда прикрутим ESO/Vault под Grafana (как для PetClinic).
+        adminPassword: "lab-grafana-admin-CHANGE-ME"
 destination:
   namespace: monitoring
 syncPolicy:
