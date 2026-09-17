@@ -32,14 +32,6 @@ source:
           enabled: true
           storageClassName: local-path
           size: 2Gi
-        # Admin-креды больше не генерируются чартом и не лежат в git — их
-        # заводит ESO (gitops/manifests/grafana-external-secret.yaml) из
-        # Vault (secret/grafana) в Secret "grafana-admin-credentials".
-        # Раньше чарт сам генерировал admin-password/admin-user случайной
-        # строкой при каждом рендере, и это тянуло за собой вечный OutOfSync
-        # на Secret и на Deployment (через checksum/secret в pod-template) —
-        # existingSecret убирает эту случайность полностью, а не прячет её
-        # через ignoreDifferences.
         admin:
           existingSecret: grafana-admin-credentials
           userKey: admin-user
