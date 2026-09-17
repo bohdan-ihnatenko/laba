@@ -1,0 +1,36 @@
+project: default
+source:
+  repoURL: https://prometheus-community.github.io/helm-charts
+  chart: kube-prometheus-stack
+  targetRevision: "91.4.1" # проверьте актуальную: helm search repo prometheus-community/kube-prometheus-stack -l
+  helm:
+    values: |
+      prometheus:
+        prometheusSpec:
+          retention: 3d
+          storageSpec:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: local-path
+                resources:
+                  requests:
+                    storage: 5Gi
+      alertmanager:
+        alertmanagerSpec:
+          storage:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: local-path
+                resources:
+                  requests:
+                    storage: 1Gi
+      grafana:
+        image:
+          repository: grafana/grafana
+          tag: "13.1.1"
+        persistence:
+          enabled: true
+          storageClassName: local-path
+          size: 2Gi
+destination:
+  namespace: monitoring
