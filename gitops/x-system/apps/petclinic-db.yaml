@@ -1,0 +1,12 @@
+project: default
+source:
+  # ВАЖНО: тот же repoURL, что и gitops_repo_url в terraform.tfvars —
+  # это не helm-репозиторий, а папка с чартом в этом же git-репозитории.
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/charts/petclinic-db
+destination:
+  namespace: petclinic
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true # PostgresCluster CRD у CrunchyData тоже крупная — тот же паттерн, что и с kube-prometheus-stack

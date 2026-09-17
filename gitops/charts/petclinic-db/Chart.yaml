@@ -1,0 +1,5 @@
+apiVersion: v2
+name: petclinic-db
+description: PostgreSQL для PetClinic через CrunchyData Postgres Operator (PGO)
+type: application
+version: 0.1.0

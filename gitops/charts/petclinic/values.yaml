@@ -1,0 +1,17 @@
+image:
+  repository: petabait/spring-petclinic
+  tag: "59b9d3a" # тот же форк/тег, что и в старой лабе — проверь, нет ли более свежего перед использованием
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi

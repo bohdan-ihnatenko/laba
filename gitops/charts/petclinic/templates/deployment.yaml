@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Release.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: postgres
+            # Форсируем /actuator/prometheus на случай, если в самом форке
+            # это не включено по умолчанию — env-переменные Spring Boot
+            # перекрывают файловый application-postgres.properties в любом
+            # случае, конфликтов не будет, даже если там уже включено.
+            - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+              value: "health,info,prometheus"
+            - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+              value: "always"
+            # Креды из petclinic-vault-secrets (ESO из Vault secret/petclinic/db) —
+            # см. комментарий в externalsecret.yaml чарта petclinic-db про
+            # bootstrap-копирование пароля, который реально сгенерил PGO.
+            #
+            # Как и с GF_SECURITY_ADMIN_PASSWORD у Grafana: эти env читаются
+            # только при старте контейнера. Поменяется значение в Vault —
+            # сам Secret обновится (ESO, refreshInterval 30s), а этому поду
+            # нужен будет рестарт, чтобы подхватить новое значение.
+            - name: POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: petclinic-vault-secrets
+                  key: jdbc-uri
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: petclinic-vault-secrets
+                  key: user
+            - name: POSTGRES_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: petclinic-vault-secrets
+                  key: password
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 15

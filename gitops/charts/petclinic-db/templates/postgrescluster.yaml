@@ -1,0 +1,40 @@
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PostgresCluster
+metadata:
+  name: petclinic
+  namespace: petclinic
+spec:
+  postgresVersion: 16
+
+  instances:
+    - name: instance1
+      replicas: 1
+      dataVolumeClaimSpec:
+        storageClassName: local-path
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+
+  backups:
+    pgbackrest:
+      repos:
+        - name: repo1
+          volume:
+            volumeClaimSpec:
+              storageClassName: local-path
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+
+  users:
+    - name: petclinic
+      databases:
+        - petclinic
+      # SUPERUSER — упрощение специально для лабы (PetClinic сам создаёт
+      # свою схему через Spring/JPA при первом старте). В проде так делать
+      # нельзя, там роль/права выдаются отдельным пользователем.
+      options: "SUPERUSER"

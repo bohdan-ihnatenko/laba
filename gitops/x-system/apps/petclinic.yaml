@@ -1,0 +1,7 @@
+project: default
+source:
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/charts/petclinic
+destination:
+  namespace: petclinic
