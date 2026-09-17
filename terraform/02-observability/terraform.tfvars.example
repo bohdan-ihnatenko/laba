@@ -1,2 +1,3 @@
 grafana_url  = "https://grafana.hydranoid.site"
 grafana_auth = "admin:<пароль из Vault secret/grafana>"
+slack_webhook = ""

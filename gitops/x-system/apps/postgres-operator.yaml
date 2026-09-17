@@ -1,13 +1,19 @@
 syncWave: "-1"  # PostgresCluster CRD должен появиться раньше, чем petclinic-db попробует создать свой CR
 project: default
 source:
-  # Официальный quickstart-манифест CrunchyData Postgres Operator (kustomize) —
-  # https://access.crunchydata.com/documentation/postgres-operator/latest/installation/helm
-  # У них есть и Helm/OCI вариант, но kustomize заводится через ArgoCD без
-  # отдельной регистрации OCI-репозитория, поэтому проще для лабы.
-  # ПРОВЕРЬ актуальный тег/ветку перед применением — "main" тут временно.
-  repoURL: https://github.com/CrunchyData/postgres-operator-examples.git
-  targetRevision: main
-  path: kustomize/install/default
+  # ИСПРАВЛЕНО: postgres-operator-examples содержит только примеры
+  # PostgresCluster (то, что мы уже скопировали в petclinic-db), а не сам
+  # оператор. Сам оператор (CRD + RBAC + Deployment) ставится из другого
+  # репозитория — CrunchyData/postgres-operator, путь config/default — это
+  # штатный kustomize-таргет "полная установка" (namespace postgres-operator,
+  # cluster-wide RBAC). Проверено через GitHub API на момент написания:
+  # актуальный тег v6.0.3, config/crd/bases там содержит postgresclusters
+  # (v1beta1) — тот же apiVersion, что используется в petclinic-db.
+  repoURL: https://github.com/CrunchyData/postgres-operator.git
+  targetRevision: v6.0.3 # проверьте актуальный тег: github.com/CrunchyData/postgres-operator/tags
+  path: config/default
 destination:
   namespace: postgres-operator
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true # у CRD postgresclusters большая схема — тот же паттерн, что и с kube-prometheus-stack
