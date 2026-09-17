@@ -37,3 +37,18 @@ destination:
 syncPolicy:
   extraSyncOptions:
     - ServerSideApply=true
+# Чарт генерирует admin-password/admin-user/ldap-toml случайной строкой при
+# КАЖДОМ рендере (а не один раз при первой установке) — ArgoCD из-за этого
+# вечно видит "разницу" между тем, что в кластере, и тем, что только что
+# нарендерил Helm. Говорим ArgoCD не сравнивать именно эти поля секрета —
+# как только он один раз создан, его реальное содержимое больше не трогаем.
+# Когда прикрутим ESO/Vault под Grafana (как для PetClinic), эта секция уйдёт.
+ignoreDifferences:
+  - group: ""
+    kind: Secret
+    name: kube-prometheus-stack-grafana
+    namespace: monitoring
+    jsonPointers:
+      - /data/admin-password
+      - /data/admin-user
+      - /data/ldap-toml

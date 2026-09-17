@@ -40,6 +40,10 @@ spec:
   destination:
     server: {{ dig "destination" "server" "https://kubernetes.default.svc" $app | quote }}
     namespace: {{ dig "destination" "namespace" "" $app }}
+  {{- with dig "ignoreDifferences" (list) $app }}
+  ignoreDifferences:
+{{ toYaml . | indent 4 }}
+  {{- end }}
   syncPolicy:
     automated:
       prune: {{ dig "syncPolicy" "automated" "prune" true $app }}
