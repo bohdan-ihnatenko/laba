@@ -2,10 +2,11 @@ project: default
 source:
   repoURL: https://prometheus-community.github.io/helm-charts
   chart: kube-prometheus-stack
-  targetRevision: "91.4.1" # проверьте актуальную: helm search repo prometheus-community/kube-prometheus-stack -l
+  targetRevision: "91.4.1"
   helm:
     values: |
       prometheus:
+        enabled: true
         prometheusSpec:
           retention: 3d
           storageSpec:
@@ -15,7 +16,9 @@ source:
                 resources:
                   requests:
                     storage: 5Gi
+
       alertmanager:
+        enabled: true
         alertmanagerSpec:
           storage:
             volumeClaimTemplate:
@@ -24,7 +27,9 @@ source:
                 resources:
                   requests:
                     storage: 1Gi
+
       grafana:
+        enabled: true
         image:
           repository: grafana/grafana
           tag: "13.1.1"
