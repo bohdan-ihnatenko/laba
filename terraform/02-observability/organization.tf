@@ -8,7 +8,7 @@
 resource "grafana_organization" "petclinic" {
   name         = "petclinic"
   create_users = false
-  admins       = ["admin"]
+  admins = ["admin@localhost"]
 }
 
 resource "grafana_data_source" "petclinic_prometheus" {
