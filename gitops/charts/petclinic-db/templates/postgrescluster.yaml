@@ -19,16 +19,33 @@ spec:
 
   backups:
     pgbackrest:
+      # ИСПРАВЛЕНО: "s3Credentials" — не существующее поле в CRD
+      # PostgresCluster (проверено по схеме postgres-operator v6.0.3,
+      # config/crd/bases/..._postgresclusters.yaml — у repos[].s3 есть
+      # только bucket/endpoint/region, credentials туда не встраиваются).
+      # Structural schema CRD такие лишние поля молча отбрасывает при
+      # apply — креды просто никогда бы не попали в pgBackRest, без явной
+      # ошибки в манифесте.
+      #
+      # Правильный механизм — configuration: секрет/конфигмапа со своим
+      # содержимым подмешивается в pgbackrest.conf. Секрет должен содержать
+      # один файл "s3.conf" с ключами repo<N>-s3-key/-key-secret (N — номер
+      # repo, у нас repo1). См. официальный пример:
+      # github.com/CrunchyData/postgres-operator-examples/kustomize/s3
+      configuration:
+        - secret:
+            name: petclinic-pgbackrest-s3-creds
       repos:
         - name: repo1
-          volume:
-            volumeClaimSpec:
-              storageClassName: local-path
-              accessModes:
-                - ReadWriteOnce
-              resources:
-                requests:
-                  storage: 1Gi
+          s3:
+            # Имя R2-бакета — см. terraform/01-platform/cloudflare-r2.tf
+            bucket: "cloudflare-r2-backup"
+            # Подставь свой account_id (тот же, что cloudflare_account_id
+            # в terraform.tfvars) — терраформ печатает готовое значение
+            # в output r2_s3_endpoint.
+            endpoint: "https://1cc24c979ef1c917ff7b38b0b92e4a7d.r2.cloudflarestorage.com"
+            # Для Cloudflare R2 регион всегда "auto"
+            region: "auto"
 
   users:
     - name: petclinic
