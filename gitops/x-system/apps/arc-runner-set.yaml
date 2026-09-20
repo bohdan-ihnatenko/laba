@@ -6,3 +6,11 @@ source:
   path: gitops/charts/arc-runner-set
 destination:
   namespace: arc-runners
+syncPolicy:
+  automated:
+    prune: false # AutoscalingListener + его Role/RoleBinding создаёт сам контроллер в
+      # рантайме (не Helm), но со stamped-лейблом argocd.argoproj.io/instance —
+      # ArgoCD принимает их за managed и лишние (см. README, раздел про ARC).
+      # С prune: true это привело бы к удалению живого слушателя на каждом
+      # auto-sync и его пересозданию контроллером по кругу. OutOfSync на этом
+      # приложении из-за этих трёх объектов — ожидаемо, не признак поломки.
