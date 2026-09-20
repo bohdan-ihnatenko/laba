@@ -1,6 +1,6 @@
 image:
   repository: petabait/spring-petclinic
-  tag: "59b9d3a" # тот же форк/тег, что и в старой лабе — проверь, нет ли более свежего перед использованием
+  tag: "8ece0ee"
   pullPolicy: IfNotPresent
 
 replicaCount: 1
