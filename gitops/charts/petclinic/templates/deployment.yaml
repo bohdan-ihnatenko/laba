@@ -39,7 +39,21 @@ spec:
             # кардинальность метрик. Для лабы с одним подом/низким RPS это не
             # проблема; в проде обычно включают точечно на конкретные SLO,
             # а не глобально на все http.server.requests.
-            - name: MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS
+            #
+            # ВАЖНО про имя env-переменной: свойство называется
+            # management.metrics.distribution.percentiles-histogram.http.server.requests
+            # (дефис внутри "percentiles-histogram"). По правилам relaxed
+            # binding в Spring Boot точки становятся подчёркиванием, а вот
+            # ДЕФИСЫ ПРОСТО УДАЛЯЮТСЯ (не заменяются на подчёркивание) - см.
+            # официальный пример в доке: spring.main.log-startup-info ->
+            # SPRING_MAIN_LOGSTARTUPINFO. Если поставить подчёркивание вместо
+            # дефиса (PERCENTILES_HISTOGRAM), Spring Boot прочитает это как
+            # ДВА разных сегмента пути и попадёт в другое, реально
+            # существующее свойство management.metrics.distribution.percentiles
+            # (мапа "имя метрики -> double[]"), получит на вход строку "true"
+            # вместо чисел и упадёт на старте с ConversionFailedException -
+            # именно так и было при первой попытке.
+            - name: MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILESHISTOGRAM_HTTP_SERVER_REQUESTS
               value: "true"
             # Креды из petclinic-vault-secrets (ESO из Vault secret/petclinic/db) —
             # см. комментарий в externalsecret.yaml чарта petclinic-db про
