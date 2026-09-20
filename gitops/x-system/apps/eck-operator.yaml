@@ -1,0 +1,13 @@
+syncWave: "-1" # CRD (Elasticsearch/Kibana/Beat) должны появиться раньше, чем
+# наш чарт elastic-stack попробует создать свои CR - тот же паттерн, что и с
+# postgres-operator/kube-prometheus-stack.
+project: default
+source:
+  repoURL: https://helm.elastic.co
+  chart: eck-operator
+  targetRevision: "3.5.0" # проверьте актуальную: artifacthub.io/packages/helm/elastic/eck-operator
+destination:
+  namespace: elastic-system
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true # CRD у ECK крупные - тот же паттерн, что и с postgres-operator/kube-prometheus-stack

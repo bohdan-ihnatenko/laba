@@ -1,0 +1,4 @@
+apiVersion: v2
+name: elastic-stack
+description: Elasticsearch + Kibana (через ECK operator) — хранилище логов PetClinic/кластера
+version: 0.1.0

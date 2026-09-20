@@ -1,0 +1,67 @@
+# Elasticsearch, управляемый ECK-оператором (gitops/x-system/apps/eck-operator.yaml).
+# Одна нода — это лабораторный масштаб, не прод-топология (в проде для
+# кворума нужно 3+ master-eligible нод), но ECK сам корректно настраивает
+# discovery для nodeSets с count: 1, руками ничего похожего на старое
+# ES_JAVA_OPTS/discovery.type=single-node (из ванильных докер-образов без
+# ECK) указывать не нужно.
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: logs
+  namespace: logging
+spec:
+  version: "9.5.4" # проверьте актуальную: endoflife.date/elasticsearch
+  nodeSets:
+    - name: default
+      count: 1
+      config:
+        # k3d-ноды (как и Docker Desktop) обычно работают без mmap-хранилища
+        # для Lucene - см. initContainer ниже, это его пара: если по какой-то
+        # причине sysctl не применится, ES хотя бы не упадёт на этом
+        # конкретном бутстрап-чеке, а не будет требовать реального mmap.
+        node.store.allow_mmap: false
+      podTemplate:
+        spec:
+          initContainers:
+            # Официальный воркэраунд ECK для дев-кластеров, у которых нет
+            # vm.max_map_count >= 262144/1048576 на хост-ноде (обязательное
+            # требование ES к виртуальной памяти) - без этого под падает в
+            # CrashLoopBackOff с "max virtual memory areas vm.max_map_count
+            # is too low". Требует privileged - нормально для домашней лабы,
+            # но НЕ делайте так на реальном/шэренном кластере (там либо
+            # DaemonSet на нодах заранее, либо это уже настроено
+            # провижининг-инструментом самой ноды).
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=1048576"]
+          containers:
+            - name: elasticsearch
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 2Gi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 3Gi
+            storageClassName: local-path
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: false
+        # Сознательно НЕ отключаем TLS/security (дефолт ECK) - в отличие от
+        # Kibana (см. kibana.yaml) этот сервис никуда наружу через Gateway не
+        # торчит, к нему ходит только Fluent Bit изнутри кластера. Упрощать
+        # тут смысла нет, а разобраться с реальной аутентификацией к ES
+        # (elastic-user secret + смонтированный ca.crt) - как раз полезная
+        # часть лабы, см. gitops/x-system/apps/fluent-bit.yaml.

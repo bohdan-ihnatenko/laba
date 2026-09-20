@@ -1,0 +1,13 @@
+project: default
+source:
+  # ВАЖНО: тот же repoURL, что и gitops_repo_url в terraform.tfvars - это не
+  # helm-репозиторий, а папка с чартом в этом же git-репозитории (тот же
+  # паттерн, что и petclinic/petclinic-db).
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/charts/elastic-stack
+destination:
+  namespace: logging
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true

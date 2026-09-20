@@ -1,0 +1,39 @@
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: kibana
+  namespace: logging
+spec:
+  version: "9.5.4" # держим в паре с version у Elasticsearch (elasticsearch.yaml)
+  count: 1
+  elasticsearchRef:
+    name: logs
+  # ECK сам создаёт технического юзера kibana_system и прокидывает Kibana
+  # креды/CA для связи с Elasticsearch через elasticsearchRef - руками
+  # никакой Secret для этого создавать не нужно, в отличие от Fluent Bit
+  # (там мы внешний неоперируемый ECK-ом клиент, поэтому там креды и ca.crt
+  # монтируем вручную).
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+        # В отличие от Elasticsearch, Kibana торчит наружу через
+        # gitops/routes/kibana.yaml -> Traefik Gateway, а наш HTTPRoute (как
+        # и у Grafana/PetClinic) идёт плоским HTTP до backendRef, без
+        # переупаковки TLS на этом хопе. Если оставить самоподписанный
+        # сертификат ECK на самой Kibana, получится https-бэкенд с
+        # untrusted-сертификатом за плоским HTTPRoute - Traefik так просто
+        # не умеет, пришлось бы городить отдельный TLSRoute/passthrough.
+        # Для лабы проще отключить TLS именно на этом последнем хопе -
+        # трафик и так не покидает pod-to-pod сеть кластера.
+  podTemplate:
+    spec:
+      containers:
+        - name: kibana
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

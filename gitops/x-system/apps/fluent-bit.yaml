@@ -1,0 +1,210 @@
+# ПОЧЕМУ node-level collector (Fluent Bit DaemonSet), а не другие варианты
+# ==========================================================================
+# Есть три способа доставить логи приложения в Elasticsearch:
+#
+# 1) Приложение само пишет в ES через клиентскую библиотеку (appender)
+#    + Не нужна отдельная инфраструктура доставки логов.
+#    - Жёсткая связка с доступностью ES: если ES недоступен/тормозит, это
+#      либо блокирует поток приложения (синхронная запись), либо требует
+#      city буфер/очередь в самом приложении (асинхронный appender + его
+#      backpressure-логику) - то есть каждое приложение само отвечает за
+#      надёжность доставки логов, и эту логику приходится реализовывать
+#      (и чинить) в каждом сервисе отдельно.
+#    - Приложению нужны креды/сетевой доступ к ES напрямую - лишняя
+#      поверхность, ещё один secret, который знает бизнес-код.
+#    - Если под убьют (OOM/crash) до того как appender успел сбросить буфер -
+#      последние логи теряются безвозвратно, в отличие от логов, уже
+#      сброшенных в stdout контейнера (те переживают падение процесса).
+#
+# 2) Sidecar-контейнер в каждом поде, читающий stdout/файл рядом с приложением
+#    + Приложение не знает про ES вообще, просто пишет в stdout как обычно.
+#    + Буферизация вынесена из процесса приложения.
+#    - Один лишний контейнер НА КАЖДУЮ реплику каждого приложения - линейно
+#      растущий оверхед (память/CPU на connection pool, буферы) вместо
+#      одного общего процесса на ноду. При 10 подах на ноде - 10 sidecar'ов
+#      делают одну и ту же работу параллельно.
+#    - Каждый деплоймент в кластере нужно руками научить (добавить sidecar +
+#      shared volume) - при появлении нового сервиса про это легко забыть.
+#
+# 3) Node-level collector (Fluent Bit/Filebeat DaemonSet), читающий
+#    /var/log/containers/*.log независимо от приложения - ВЫБРАНО ЗДЕСЬ.
+#    + Полная развязка от доступности ES: приложение просто пишет в stdout
+#      (12-factor, как и предполагает k8s) и вообще не знает о существовании
+#      ES/Kibana. Если ES ляжет - Fluent Bit сам ретраит/буферизует на диске
+#      ноды (Retry_Limit, backpressure в engine), а не блокирует и не роняет
+#      прикладной под.
+#    + Один процесс на ноду обслуживает ВСЕ поды сразу - overhead не растёт
+#      линейно с числом подов/сервисов.
+#    + Новый сервис в кластере автоматически подхватывается - ничего в его
+#      деплойменте менять не нужно, конфиг DaemonSet один на весь кластер.
+#    + Захватывает логи контейнера даже если он успел упасть - логи читаются
+#      из файла на диске ноды, а не из живого процесса приложения.
+#    - Меньше контроля над структурой на месте генерации (парсинг/обогащение
+#      происходит уже "снаружи", в Fluent Bit, а не в самом приложении) -
+#      компенсируется fluent-bit'овскими фильтрами (kubernetes, multiline
+#      для Java-стектрейсов - см. ниже).
+#    - Нужен hostPath-доступ к логам ноды (/var/log, /var/lib/docker/containers) -
+#      небольшая, но реальная поверхность (DaemonSet видит логи ВСЕХ подов
+#      на ноде, не только "своих").
+#
+# Итог: для лабы (и вообще как паттерн по умолчанию для разнородного набора
+# сервисов) node-level collector даёт лучший баланс - нулевая связанность
+# приложения с ES, минимальный операционный оверхед на новый сервис, и
+# устойчивость к падению ES не ценой доп. кода в каждом приложении. Именно
+# так уже было сделано в старой лабе (тот же Fluent Bit), только там - в
+# OpenSearch; здесь адаптировано под реальный ECK-managed Elasticsearch
+# (TLS + basic auth вместо анонимного http).
+project: default
+source:
+  repoURL: https://fluent.github.io/helm-charts
+  chart: fluent-bit
+  targetRevision: "0.57.9"
+  helm:
+    values: |
+      kind: DaemonSet
+
+      env:
+        - name: ES_HOST
+          value: logs-es-http.logging.svc.cluster.local
+        - name: ES_PORT
+          value: "9200"
+        # ECK сам создаёт этот Secret для юзера "elastic" (суперюзер) при
+        # создании ресурса Elasticsearch "logs" - имя секрета всегда
+        # <имя-ресурса>-es-elastic-user, ключ внутри - "elastic".
+        - name: ES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: logs-es-elastic-user
+              key: elastic
+
+      # k3d-ноды не имеют /etc/machine-id как обычного файла, поэтому
+      # дефолтный hostPath-volume "etcmachineid" из чарта не монтируется
+      # (MountVolume.SetUp failed: hostPath type check failed). Шаблон чарта
+      # безусловно добавляет свой volume/mount "config" (см. templates/_pod.tpl) -
+      # daemonSetVolumes/daemonSetVolumeMounts это только *дополнительные*
+      # volume поверх него, поэтому "config" тут повторять нельзя (задвоится).
+      daemonSetVolumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        # ca.crt для проверки самоподписанного сертификата Elasticsearch -
+        # секрет <имя-ресурса>-es-http-certs-public создаёт сам ECK, ключ
+        # ca.crt внутри него.
+        - name: es-ca-cert
+          secret:
+            secretName: logs-es-http-certs-public
+
+      daemonSetVolumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: es-ca-cert
+          mountPath: /certs
+          readOnly: true
+
+      config:
+        service: |
+          [SERVICE]
+              Daemon Off
+              Flush 5
+              Log_Level info
+              Parsers_File parsers.conf
+              Parsers_File custom_parsers.conf
+              HTTP_Server On
+              HTTP_Listen 0.0.0.0
+              HTTP_Port 2020
+              Health_Check On
+
+        inputs: |
+          [INPUT]
+              Name tail
+              Path /var/log/containers/*.log
+              multiline.parser docker, cri
+              Tag kube.*
+              Mem_Buf_Limit 5MB
+              Skip_Long_Lines On
+              Refresh_Interval 10
+
+        filters: |
+          [FILTER]
+              Name kubernetes
+              Match kube.*
+              Merge_Log On
+              Merge_Log_Key log_processed
+              Keep_Log Off
+              K8S-Logging.Parser On
+              K8S-Logging.Exclude On
+
+          # Пересобираем Java-стектрейсы (PetClinic - Spring Boot) в одно
+          # log-событие вместо одного события на строку.
+          [FILTER]
+              Name multiline
+              Match kube.*
+              multiline.key_content log
+              multiline.parser java
+
+          # Отдельный тег для логов PetClinic, чтобы роутить их в свой индекс.
+          [FILTER]
+              Name rewrite_tag
+              Match kube.var.log.containers.*
+              Rule $kubernetes['namespace_name'] ^(petclinic)$ petclinic.$TAG false
+              Emitter_Name petclinic_emitter
+
+        customParsers: |
+          [MULTILINE_PARSER]
+              name java
+              type regex
+              rule "start_state" "/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/" "cont"
+              rule "cont" "/^(?!\d{4}-\d{2}-\d{2}).*/" "cont"
+
+        outputs: |
+          [OUTPUT]
+              Name es
+              Match petclinic.*
+              Host ${ES_HOST}
+              Port ${ES_PORT}
+              HTTP_User elastic
+              HTTP_Passwd ${ES_PASSWORD}
+              tls On
+              tls.ca_file /certs/ca.crt
+              Index petclinic-logs
+              Suppress_Type_Name On
+              Replace_Dots On
+              Retry_Limit 5
+
+          [OUTPUT]
+              Name es
+              Match kube.*
+              Host ${ES_HOST}
+              Port ${ES_PORT}
+              HTTP_User elastic
+              HTTP_Passwd ${ES_PASSWORD}
+              tls On
+              tls.ca_file /certs/ca.crt
+              Index k8s-logs
+              Suppress_Type_Name On
+              Replace_Dots On
+              Retry_Limit 5
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 200Mi
+
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+destination:
+  namespace: logging
+syncPolicy:
+  automated:
+    prune: true
+    selfHeal: true
