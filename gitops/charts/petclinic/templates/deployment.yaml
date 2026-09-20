@@ -33,6 +33,14 @@ spec:
               value: "health,info,prometheus"
             - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
               value: "always"
+            # Включаем гистограммные бакеты (http_server_requests_seconds_bucket),
+            # иначе Grafana-панели с histogram_quantile() (P95 latency) не по чему
+            # считать - Micrometer по умолчанию их не генерирует, чтобы не раздувать
+            # кардинальность метрик. Для лабы с одним подом/низким RPS это не
+            # проблема; в проде обычно включают точечно на конкретные SLO,
+            # а не глобально на все http.server.requests.
+            - name: MANAGEMENT_METRICS_DISTRIBUTION_PERCENTILES_HISTOGRAM_HTTP_SERVER_REQUESTS
+              value: "true"
             # Креды из petclinic-vault-secrets (ESO из Vault secret/petclinic/db) —
             # см. комментарий в externalsecret.yaml чарта petclinic-db про
             # bootstrap-копирование пароля, который реально сгенерил PGO.
