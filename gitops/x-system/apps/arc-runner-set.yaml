@@ -1,0 +1,8 @@
+syncWave: "0" # после arc-controller (wave -1), т.к. AutoscalingRunnerSet CRD должен уже стоять
+project: default
+source:
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/charts/arc-runner-set
+destination:
+  namespace: arc-runners

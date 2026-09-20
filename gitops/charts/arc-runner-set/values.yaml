@@ -1,0 +1,54 @@
+# Значения ниже уходят в зависимость gha-runner-scale-set (алиас = имя чарта,
+# см. Chart.yaml) — это официальные ключи чарта, не наша выдумка.
+gha-runner-scale-set:
+  # Один AutoscalingRunnerSet на конкретный репозиторий (не на всю
+  # организацию) — раннеры нужны только под сборку petclinic.
+  githubConfigUrl: https://github.com/bohdan-ihnatenko/spring-petclinic
+
+  # Имя, под которым этот scale set появится в GitHub (Settings → Actions →
+  # Runners) и на которое воркфлоу ссылается через `runs-on:` — см.
+  # .github/workflows/ci.yaml в репозитории spring-petclinic.
+  runnerScaleSetName: arc-runner-set
+
+  # Секрет с GitHub App кредами — заводится ExternalSecret'ом ниже
+  # (templates/external-secret.yaml), из Vault, тем же способом, что и все
+  # остальные секреты в этом кластере. САМ GitHub App заводится вручную один
+  # раз в GitHub UI и кладётся в Vault — см. README.md в корне репозитория,
+  # раздел "Self-hosted runners (ARC)".
+  githubConfigSecret: arc-github-app-creds
+
+  # Скейл до нуля в простое — на однонодном k3d нет смысла держать раннер
+  # постоянно висящим, поднимается по факту нового workflow run.
+  minRunners: 0
+  maxRunners: 2
+
+  # petclinic собирается через docker/build-push-action — раннеру нужен
+  # реальный docker, поэтому dind-режим (чарт сам добавляет sidecar с
+  # dockerd и все нужные volume/security context), а не "kubernetes" режим.
+  containerMode:
+    type: dind
+
+  # SA контроллера создаётся релизом arc-controller (см.
+  # gitops/x-system/apps/arc-controller.yaml) под именем
+  # "<release-name-контроллера>-gha-rs-controller" — стандартное поведение
+  # чарта при отсутствии fullnameOverride. Если после первого sync окажется
+  # другое имя — проверить: kubectl -n arc-systems get sa.
+  controllerServiceAccount:
+    namespace: arc-systems
+    name: arc-controller-gha-rs-controller
+
+  # Оверрайд ресурсов именно для контейнера "runner" (мерджится с тем, что
+  # чарт сам генерит для dind-режима, по имени контейнера) — сборка
+  # spring-petclinic (maven + docker build) прожорливее, чем дефолтные
+  # значения чарта, рассчитанные на лёгкие джобы.
+  template:
+    spec:
+      containers:
+        - name: runner
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi

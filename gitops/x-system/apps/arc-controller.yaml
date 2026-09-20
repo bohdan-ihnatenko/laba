@@ -1,0 +1,22 @@
+syncWave: "-1" # controller и его CRD (AutoscalingRunnerSet и т.д.) должны встать раньше runner scale set'а
+project: default
+source:
+  # Публичный OCI-чарт GitHub'а. ArgoCD умеет тянуть анонимные OCI helm-чарты
+  # по repoURL без схемы (просто хост+путь), точно так же, как обычные
+  # index-based helm-репозитории (см. официальную доку actions-runner-controller
+  # по установке через ArgoCD) — argocd repo add тут не нужен.
+  repoURL: ghcr.io/actions/actions-runner-controller-charts
+  chart: gha-runner-scale-set-controller
+  targetRevision: "0.14.1" # проверьте актуальную: helm show chart oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+  helm:
+    values: |
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+destination:
+  namespace: arc-systems

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: arc-runner-set
+description: >-
+  Обёртка над официальным чартом gha-runner-scale-set (OCI) + свой
+  ExternalSecret с креденшлами GitHub App рядом — тот же паттерн, что и у
+  x-gha-runner-scale-set-controller в общем charts-lib компании. Обёртка
+  нужна ровно для одного: чтобы Secret и сам runner scale set гарантированно
+  оказались в одном ArgoCD sync (и в одном неймспейсе, что требует сам ARC:
+  githubConfigSecret должен лежать рядом со scale set'ом), без гонки между
+  двумя независимыми Application.
+type: application
+version: 0.1.0
+dependencies:
+  - name: gha-runner-scale-set
+    version: "0.14.1" # проверьте актуальную вместе с контроллером — версии должны совпадать
+    repository: "oci://ghcr.io/actions/actions-runner-controller-charts"
