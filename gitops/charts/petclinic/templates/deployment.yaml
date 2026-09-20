@@ -5,6 +5,15 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  annotations:
+    # Reloader (gitops/x-system/apps/reloader.yaml) следит за секретами/
+    # конфигмапами, которые реально используются в поде (env/envFrom/volume),
+    # и катит rolling restart, когда они меняются. У нас POSTGRES_URL/USER/
+    # PASS читаются из petclinic-vault-secrets (ESO из Vault, см.
+    # externalsecret.yaml в чарте petclinic-db) — без этой аннотации смена
+    # пароля в Vault обновит сам Secret, но под продолжит работать со старым
+    # значением, пока кто-то не перезапустит его руками.
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:

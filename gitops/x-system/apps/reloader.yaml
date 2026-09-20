@@ -1,0 +1,25 @@
+project: default
+source:
+  repoURL: https://stakater.github.io/stakater-charts
+  chart: reloader
+  targetRevision: "2.2.17" # проверьте актуальную: helm search repo stakater/reloader -l
+  helm:
+    values: |
+      # По умолчанию Reloader смотрит все неймспейсы, но триггерится только
+      # на ConfigMap/Secret, у которых явно стоит аннотация
+      # reloader.stakater.com/auto на самом Deployment/StatefulSet/DaemonSet
+      # (см. gitops/charts/petclinic/templates/deployment.yaml) — то есть
+      # ничего не перезапускается "по умолчанию", только то, что явно
+      # подписалось.
+      reloader:
+        watchGlobally: true
+        deployment:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+destination:
+  namespace: reloader
