@@ -20,3 +20,9 @@ source:
           memory: 512Mi
 destination:
   namespace: arc-systems
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true # CRD у ARC (autoscalingrunnersets/ephemeralrunners/...) большие —
+      # тот же паттерн, что и с postgres-operator/kube-prometheus-stack/gateway-api-crds:
+      # обычный client-side apply падает на лимите 262144 байт у аннотации
+      # last-applied-configuration.
