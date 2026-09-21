@@ -6,6 +6,19 @@ source:
   path: gitops/charts/arc-runner-set
 destination:
   namespace: arc-runners
+# selfHeal (включён по умолчанию в нашем шаблоне applications.yaml) иначе
+# каждую сверку откатывал бы --mtu=1400, который PostSync-хук
+# (dind-mtu-patch-job.yaml) дописывает в args контейнера dind в обход git —
+# чарт gha-runner-scale-set не даёт эту опцию через values (см. комментарий
+# в dind-mtu-patch-job.yaml), поэтому этот путь ArgoCD должен просто
+# игнорировать при сравнении live/desired, а не считать его дрейфом.
+# Индекс [1] — второй контейнер в initContainers ("dind", после
+# "init-dind-externals"), фиксирован порядком самого чарта.
+ignoreDifferences:
+  - group: actions.github.com
+    kind: AutoscalingRunnerSet
+    jsonPointers:
+      - /spec/template/spec/initContainers/1/args
 syncPolicy:
   automated:
     prune: false # AutoscalingListener + его Role/RoleBinding создаёт сам контроллер в
