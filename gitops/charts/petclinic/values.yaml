@@ -1,6 +1,6 @@
 image:
   repository: petabait/spring-petclinic
-  tag: "8ece0ee"
+  tag: "a759ffd"
   pullPolicy: IfNotPresent
 
 replicaCount: 1
