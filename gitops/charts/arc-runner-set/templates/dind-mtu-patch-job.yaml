@@ -55,7 +55,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: patch
-          image: rancher/kubectl:v1.33.13
+          image: bitnami/kubectl:latest
           command:
             - sh
             - -c
