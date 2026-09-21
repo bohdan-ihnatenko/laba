@@ -1,9 +1,12 @@
 # Elasticsearch, управляемый ECK-оператором (gitops/x-system/apps/eck-operator.yaml).
-# Одна нода — это лабораторный масштаб, не прод-топология (в проде для
-# кворума нужно 3+ master-eligible нод), но ECK сам корректно настраивает
-# discovery для nodeSets с count: 1, руками ничего похожего на старое
-# ES_JAVA_OPTS/discovery.type=single-node (из ванильных докер-образов без
-# ECK) указывать не нужно.
+# nodeSets.count: 2 — две ES-ноды на разных k3d-нодах (агентов у нас два),
+# чтобы primary-шардам было куда класть реплику и кластер стал green.
+# При count: 1 реплике физически негде быть: ES не селит реплику на ту же
+# ES-ноду, что и primary, независимо от того, сколько в кластере k8s-нод.
+# Для реального прод-кворума нужно 3+ master-eligible нод (чётное число
+# подвержено split-brain), но для лабы двух достаточно. ECK сам корректно
+# настраивает discovery под nodeSets, руками ES_JAVA_OPTS/discovery.type=
+# single-node указывать не нужно.
 apiVersion: elasticsearch.k8s.elastic.co/v1
 kind: Elasticsearch
 metadata:
@@ -13,7 +16,7 @@ spec:
   version: "9.5.4" # проверьте актуальную: endoflife.date/elasticsearch
   nodeSets:
     - name: default
-      count: 1
+      count: 2
       config:
         # k3d-ноды (как и Docker Desktop) обычно работают без mmap-хранилища
         # для Lucene - см. initContainer ниже, это его пара: если по какой-то
