@@ -1,0 +1,89 @@
+# У официального чарта gha-runner-scale-set (containerMode.type: dind)
+# контейнер `dind` целиком захардкожен в _helpers.tpl (image/args/env) —
+# values.yaml для него никакого хука не даёт, добавить туда DOCKER_MTU/env
+# через containers[] нельзя (чарт явно фильтрует по имени "dind"/"runner").
+# Проверено на 0.14.1 (текущей) и на main — не поменялось.
+#
+# Поэтому MTU для вложенного dockerd правим PostSync-хуком: после каждого
+# sync находим живой AutoscalingRunnerSet и JSON Patch'ем добавляем
+# --mtu=1400 в args того самого контейнера dind. Скрипт сам определяет,
+# сидит dind в initContainers (k8s >=1.29, native sidecar) или в
+# containers (старее) — не завязываемся на конкретную версию k3s.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: arc-runner-set-mtu-patcher
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: arc-runner-set-mtu-patcher
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: ["actions.github.com"]
+    resources: ["autoscalingrunnersets"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: arc-runner-set-mtu-patcher
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: arc-runner-set-mtu-patcher
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: arc-runner-set-mtu-patcher
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: arc-runner-set-dind-mtu-patch
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: arc-runner-set-mtu-patcher
+      restartPolicy: Never
+      containers:
+        - name: patch
+          image: bitnami/kubectl:1.31
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              NS="{{ .Release.Namespace }}"
+              NAME=$(kubectl get autoscalingrunnerset -n "$NS" -o jsonpath='{.items[0].metadata.name}')
+              if [ -z "$NAME" ]; then
+                echo "AutoscalingRunnerSet не найден в $NS"; exit 1
+              fi
+
+              LIST=""; IDX=""
+              for L in initContainers containers; do
+                I=$(kubectl get autoscalingrunnerset "$NAME" -n "$NS" \
+                  -o jsonpath="{range .spec.template.spec.$L[*]}{.name}{\"\n\"}{end}" \
+                  2>/dev/null | grep -n '^dind$' | head -1 | cut -d: -f1)
+                if [ -n "$I" ]; then
+                  LIST=$L
+                  IDX=$((I - 1))
+                  break
+                fi
+              done
+
+              if [ -z "$LIST" ]; then
+                echo "Контейнер dind не найден ни в initContainers, ни в containers у $NAME"
+                exit 1
+              fi
+
+              echo "dind найден: $LIST[$IDX], патчим args"
+              kubectl patch autoscalingrunnerset "$NAME" -n "$NS" --type=json -p \
+                "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/$LIST/$IDX/args\",\"value\":[\"dockerd\",\"--host=unix:///var/run/docker.sock\",\"--group=\$(DOCKER_GROUP_GID)\",\"--mtu=1400\"]}]"
