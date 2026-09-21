@@ -37,14 +37,21 @@ gha-runner-scale-set:
     namespace: arc-systems
     name: arc-controller-gha-rs-controller
 
-  # Оверрайд ресурсов именно для контейнера "runner" (мерджится с тем, что
-  # чарт сам генерит для dind-режима, по имени контейнера) — сборка
-  # spring-petclinic (maven + docker build) прожорливее, чем дефолтные
-  # значения чарта, рассчитанные на лёгкие джобы.
+  # ВАЖНО: Helm не мерджит списки поэлементно по имени — если тут задать
+  # containers, это ПОЛНОСТЬЮ заменяет дефолтный контейнер чарта, а не
+  # дополняет его. Поэтому image/command ниже — это не наша прихоть, а
+  # обязательное повторение того, что в чарте стоит по умолчанию (см.
+  # values.yaml gha-runner-scale-set), иначе под падает с "image: Required
+  # value" (ровно это и произошло, когда тут был только name+resources —
+  # заодно ломает и init-контейнер для dind, который берёт образ отсюда же).
+  # Из дефолта меняем только resources — сборка spring-petclinic (maven +
+  # docker build) прожорливее, чем то, на что рассчитан чарт по умолчанию.
   template:
     spec:
       containers:
         - name: runner
+          image: ghcr.io/actions/actions-runner:latest
+          command: ["/home/runner/run.sh"]
           resources:
             requests:
               cpu: 500m
