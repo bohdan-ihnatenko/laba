@@ -5,6 +5,58 @@
 розкочується самим ArgoCD за паттерном app-of-apps. Після `terraform apply`
 в `01-platform` руками в кластер більше нічого не накочується.
 
+## Мережа: Cloudflare Tunnel → Gateway API
+
+Ключовий момент тут не "які є компоненти", а напрямок ініціації з'єднання:
+**cloudflared сам виходить назовні першим**, тому на кластері немає жодного
+відкритого вхідного порту — фаєрвол/NAT/публічна IP не потрібні. Cloudflare
+використовує той самий вихідний тунель, щоб занести вхідний HTTPS-запит
+усередину, а Traefik далі маршрутизує його виключно за заголовком `Host`.
+
+```
+Браузер
+  │  1. https://*.hydranoid.site (TLS)
+  ▼
+Cloudflare Edge ── TLS термінується тут
+  ▲                                     │
+  │ 2. вихідний тунель                  │ 3. той самий тунель заносить
+  │    ініціює cloudflared               │    HTTPS-запит усередину
+  │    (вхідних портів у кластері нема)  │
+  │                                      ▼
+┌──────────────────────────── k3d кластер ─────────────────────────────┐
+│                                                                        │
+│  cloudflared (Deployment ×2, ns cloudflared)                          │
+│     │ 4. plain HTTP :80                                               │
+│     ▼                                                                  │
+│  Traefik — Svc traefik-gateway (ns traefik)                           │
+│  GatewayClass traefik / Gateway traefik-gateway                       │
+│  HTTPRoute матчить заголовок Host                                     │
+│     │                                                                   │
+│     ├─ argocd.hydranoid.site    → argocd-server (ns argocd)           │
+│     ├─ petclinic.hydranoid.site → petclinic (ns petclinic)            │
+│     ├─ grafana.hydranoid.site   → kube-prometheus-stack-grafana (ns monitoring)
+│     ├─ kibana.hydranoid.site    → kibana-kb-http (ns logging)         │
+│     └─ vault.hydranoid.site     → vault (ns vault)                    │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+П'ять зовнішніх хостів — п'ять незалежних `HTTPRoute` у `gitops/routes/*.yaml`,
+один спільний `Gateway`. Усередині кластера — всюди plain HTTP, жодного TLS
+між подами (див. розділ "Що було б інакше" нижче про наслідки цього рішення).
+
+## Доступ
+
+| Сервіс | URL |
+|---|---|
+| ArgoCD | https://argocd.hydranoid.site |
+| PetClinic | https://petclinic.hydranoid.site |
+| Grafana | https://grafana.hydranoid.site |
+| Kibana | https://kibana.hydranoid.site |
+| Vault | https://vault.hydranoid.site |
+
+Паролі — у Vault (`secret/argocd`, `secret/grafana` тощо), не в цьому файлі.
+
 ## Архітектура
 
 ```
@@ -36,7 +88,7 @@ Terraform (00-cluster → 01-platform → 02-observability)
 Зовні: Cloudflare Tunnel (cloudflared, звичайний Deployment з Terraform) →
 Traefik Gateway → HTTPRoute на конкретний сервіс. TLS термінується на
 межі Cloudflare, всередині кластера все по HTTP. Детальніше — розділ
-"Мережа" нижче.
+"Мережа" вище.
 ```
 
 Terraform у три шари піднімає k3d-кластер, ставить ArgoCD і створює
@@ -85,7 +137,7 @@ Grafana, GitHub App для ARC.
 Tunnel (`cloudflared`, звичайний Deployment на 2 репліки, заведений Terraform'ом
 у `01-platform`, не через GitOps — це найперший компонент, який
 має бути живий ще до того, як ArgoCD взагалі здатен щось показати
-назовні). Повна схема руху запиту — розділ "Мережа" нижче.
+назовні). Повна схема руху запиту — розділ "Мережа" вище.
 
 **kube-prometheus-stack + Grafana.** Prometheus + Alertmanager + Grafana
 одним чартом. Окрема Grafana-організація `petclinic`
@@ -98,8 +150,7 @@ HikariCP connections), не дефолтний cluster-overview. Алерт
 `PetClinicHighErrorRate` (будь-які 5xx за 5 хвилин, `for: 1m`) — демонструється
 через вбудований у PetClinic пункт `/oups`, який завжди кидає 500.
 
-**Elastic stack (логи).** ECK-оператор + `Elasticsearch` (2 ноди після
-недавнього фіксу жовтого health, див. нижче) + `Kibana` — обидва ресурси живуть
+**Elastic stack (логи).** ECK-оператор + `Elasticsearch` + `Kibana` — обидва ресурси живуть
 в одному чарті `elastic-stack`, бо Kibana посилається на Elasticsearch
 через `elasticsearchRef` і отримує від ECK креди/CA автоматично, без
 ручних секретів. Доставка логів — Fluent Bit (DaemonSet), а не альтернативи:
@@ -168,58 +219,6 @@ settings → GitHub Apps, права Actions: Read-only + Administration:
 Read and write) — Terraform'ом це не автоматизується, креди (app-id,
 installation-id, private-key) лежать у Vault (`secret/arc/github-app`).
 
-## Мережа: Cloudflare Tunnel → Gateway API
-
-Ключовий момент тут не "які є компоненти", а напрямок ініціації з'єднання:
-**cloudflared сам виходить назовні першим**, тому на кластері немає жодного
-відкритого вхідного порту — фаєрвол/NAT/публічна IP не потрібні. Cloudflare
-використовує той самий вихідний тунель, щоб занести вхідний HTTPS-запит
-усередину, а Traefik далі маршрутизує його виключно за заголовком `Host`.
-
-```
-Браузер
-  │  1. https://*.hydranoid.site (TLS)
-  ▼
-Cloudflare Edge ── TLS термінується тут
-  ▲                                     │
-  │ 2. вихідний тунель                  │ 3. той самий тунель заносить
-  │    ініціює cloudflared               │    HTTPS-запит усередину
-  │    (вхідних портів у кластері нема)  │
-  │                                      ▼
-┌──────────────────────────── k3d кластер ─────────────────────────────┐
-│                                                                        │
-│  cloudflared (Deployment ×2, ns cloudflared)                          │
-│     │ 4. plain HTTP :80                                               │
-│     ▼                                                                  │
-│  Traefik — Svc traefik-gateway (ns traefik)                           │
-│  GatewayClass traefik / Gateway traefik-gateway                       │
-│  HTTPRoute матчить заголовок Host                                     │
-│     │                                                                   │
-│     ├─ argocd.hydranoid.site    → argocd-server (ns argocd)           │
-│     ├─ petclinic.hydranoid.site → petclinic (ns petclinic)            │
-│     ├─ grafana.hydranoid.site   → kube-prometheus-stack-grafana (ns monitoring)
-│     ├─ kibana.hydranoid.site    → kibana-kb-http (ns logging)         │
-│     └─ vault.hydranoid.site     → vault (ns vault)                    │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-П'ять зовнішніх хостів — п'ять незалежних `HTTPRoute` у `gitops/routes/*.yaml`,
-один спільний `Gateway`. Усередині кластера — всюди plain HTTP, жодного TLS
-між подами (див. розділ "Що було б інакше" нижче про наслідки цього рішення).
-
-## Доступ
-
-| Сервіс | URL |
-|---|---|
-| ArgoCD | https://argocd.hydranoid.site |
-| PetClinic | https://petclinic.hydranoid.site |
-| Grafana | https://grafana.hydranoid.site |
-| Kibana | https://kibana.hydranoid.site |
-| Vault | https://vault.hydranoid.site |
-
-Паролі — у Vault (`secret/argocd`, `secret/grafana` тощо), не в цьому файлі.
-
 ## Що ламалося і як лагодили
 
 - **Elasticsearch вічний `yellow` / ArgoCD вічний `Progressing`.**
@@ -248,12 +247,6 @@ Cloudflare Edge ── TLS термінується тут
   дочірні об'єкти не успадкують. На `arc-runner-set` додатково
   `prune: false` — інакше живий listener видалявся б на кожному auto-sync і
   пересоздавався контролером по колу.
-- **`PostgresCluster` не підхоплював креди S3 для pgBackRest.** Поле
-  `repos[].s3.credentials` у CRD `PostgresCluster` не існує
-  (перевірено за схемою CRD postgres-operator v6.0.3) — structural schema
-  мовчки відкидає зайві поля при apply, без помилки. Правильний шлях —
-  `backups.pgbackrest.configuration[].secret` з файлом `s3.conf` всередині
-  секрету, який збирає ESO через `target.template`.
 - **Grafana-панелі з `histogram_quantile()` (P95-латентність) були порожні.**
   Micrometer за замовчуванням не генерує histogram-бакети. Потрібна властивість —
   `management.metrics.distribution.percentiles-histogram.http.server.requests`;
@@ -293,11 +286,6 @@ Cloudflare Edge ── TLS термінується тут
   реальному/шареному кластері — там потрібен або DaemonSet, що налаштовує
   sysctl на нодах заздалегідь, або провіжинінг-інструмент самої ноди, а для
   докер-збірок — щось на кшталт rootless BuildKit замість dind.
-- **Весь трафік всередині кластера — plain HTTP**, TLS тільки на межі
-  Cloudflare (див. розділ "Мережа" вище). Для лаби це ок (кластер —
-  довірений периметр), у реальному середовищі — internal mTLS між
-  сервісами (cert-manager + service mesh або аналог), а не голий HTTP до
-  бекенда за Gateway.
 - **Resource requests/limits всюди підібрані на око під один ноутбук**, не
   за реальним навантаженням — у проді це окрема робота з профілюванням і
   load-тестами, а не константи в values.yaml.
