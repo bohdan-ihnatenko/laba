@@ -10,11 +10,11 @@ spec:
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
 metadata:
-  name: strict-mtls
+  name: permissive-mtls #strict-mtls
   namespace: external-secrets
 spec:
   mtls:
-    mode: STRICT
+    mode: PERMISSIVE #STRICT
 ---
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
