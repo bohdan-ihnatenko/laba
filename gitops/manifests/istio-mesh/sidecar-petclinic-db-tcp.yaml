@@ -13,14 +13,27 @@
 # протокол TCP лише для 5432 на petclinic-primary; другий egress-запис без
 # port - обов'язковий catch-all: щойно в Sidecar з'являється хоч один
 # egress з явним port, дефолтний "дозволити все" зникає, і без catch-all
-# under зламаються решта вихідних з'єднань пода (istiod, DNS, інші
-# сервіси).
+# зламаються решта вихідних з'єднань пода (istiod, DNS, інші сервіси).
+#
+# workloadSelector: без нього Sidecar діє на ВСІ інжектовані поди в
+# неймспейсі petclinic - включно з подами Patroni/Postgres (той самий
+# неймспейс, той самий label istio-injection на неймспейсі). Patroni
+# сам ходить у Kubernetes API за DCS (leader lock) - цей трафік не мав
+# жодного стосунку до HikariCP/5432 і не мав потрапляти під цей Sidecar
+# взагалі. `app: petclinic` - лейбл лише на подах Deployment застосунку
+# (gitops/charts/petclinic/templates/deployment.yaml); поди
+# PostgresCluster мають свої власні лейбли від CrunchyData-оператора
+# (postgres-operator.crunchydata.com/...) і під цей selector не
+# потрапляють.
 apiVersion: networking.istio.io/v1
 kind: Sidecar
 metadata:
   name: petclinic-db-force-tcp
   namespace: petclinic
 spec:
+  workloadSelector:
+    labels:
+      app: petclinic
   egress:
     - port:
         number: 5432
