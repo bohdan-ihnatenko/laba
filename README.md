@@ -230,16 +230,25 @@ logging) свідомо не чіпали, бо в подів CrunchyData/ARC і
 відомі свої гоцики (init-ordering, привілейовані контейнери) — тестувати
 варто по одному неймспейсу за раз, а не одразу на весь кластер.
 
-**Чесно:** інжекція сайдкара відбувається лише при СТВОРЕННІ пода, не
-ретроактивно — лейбл на неймспейс сам по собі не додає `istio-proxy` в
-уже запущені поди. `vault`/`external-secrets` живуть 7 днів, лейбл на
-них повісили щойно, тож поки поди там не перезапущені вручну
-(`kubectl rollout restart deployment/statefulset ...`), `istio-proxy` в
-них, найімовірніше, ще немає — і mTLS фактично не діє, хоч ArgoCD і
-показує `Synced`/`Healthy` (це стан GitOps-об'єктів, а не факт наявності
-сайдкара в поді). Перевірити:
-`kubectl -n vault get pod <під> -o jsonpath='{.spec.containers[*].name}'`
-— серед контейнерів має з'явитися `istio-proxy`.
+**Чесно (і перевірено вручну):** інжекція сайдкара відбувається лише при
+СТВОРЕННІ пода, не ретроактивно — лейбл на неймспейс сам по собі не додає
+`istio-proxy` в уже запущені поди, тож після навішування лейбла поди
+`vault`/`external-secrets` довелося перезапустити (`kubectl rollout
+restart deployment/statefulset ...`) — інакше ArgoCD показував би
+`Synced`/`Healthy` (це стан GitOps-об'єктів), а сайдкара в подах
+фактично не було б. Після рестарту `istio-proxy` піднявся в обох
+неймспейсах (лог `Envoy proxy is ready`), а що STRICT mTLS дійсно
+enforce, а не просто лежить об'єктом в API, підтвердили прямим тестом:
+запит з пода БЕЗ сайдкара (`kubectl run debug --rm -it -n default
+--image=curlimages/curl --restart=Never -- curl -v --max-time 5
+http://vault.vault.svc.cluster.local:8200/v1/sys/health`) впав з `Recv
+failure: Connection reset by peer` — envoy на боці Vault обірвав
+plaintext-з'єднання, бо чекав mTLS-хендшейк. Якщо колись знадобиться
+повторити перевірку — цей самий curl-під без sidecar-ін'єкції і є
+критерій "працює/не працює" (SSL-статистика в `:15000/stats` на
+istio-proxy тут не показова — Istio за замовчуванням ріже більшість
+статистики через `proxyStatsMatcher`, тож порожній grep по `ssl\.` ще
+нічого не означає).
 
 ## Що ламалося і як лагодили
 
