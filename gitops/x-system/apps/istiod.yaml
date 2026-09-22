@@ -31,6 +31,25 @@ source:
       # це тестувати по одному неймспейсу за раз.
 destination:
   namespace: istio-system
+# Той самий дрейф, що й на istiod-default-validator у istio-base.yaml, але
+# на ІНШИХ об'єктах - чарт istiod ставить свої власні webhook'и
+# (istio-validator-istio-system, istio-sidecar-injector), окремі від
+# placeholder-вебхука з чарта base. istiod (manager pilot-discovery) так
+# само сам патчить їм caBundle (обом) і failurePolicy (у валідатора) через
+# SSA в обхід git - ігнор на istio-base сюди не поширюється, це різні
+# resource name.
+ignoreDifferences:
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: istio-validator-istio-system
+    jsonPointers:
+      - /webhooks/0/failurePolicy
+      - /webhooks/0/clientConfig/caBundle
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+    name: istio-sidecar-injector
+    jsonPointers:
+      - /webhooks/0/clientConfig/caBundle
 syncPolicy:
   extraSyncOptions:
     - ServerSideApply=true
