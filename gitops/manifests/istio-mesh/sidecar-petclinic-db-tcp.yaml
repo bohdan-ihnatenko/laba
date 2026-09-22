@@ -1,0 +1,32 @@
+# Service petclinic-primary (керується CrunchyData-оператором, ми його не
+# редагуємо) має порт з ім'ям "postgres" - цей префікс НЕ входить у список
+# протоколів, які Istio розпізнає за назвою порту (http-, tcp-, grpc-,
+# mysql-, redis- і т.д.), тож замість явного TCP-passthrough вмикається
+# protocol sniffing "на око". На практиці це вбивало прогріті
+# HikariCP-з'єднання (WARN "This connection has been closed" пачками що
+# ~90с) - health-check БД (DataSourceHealthIndicator) чекав 14-21с на нове
+# з'єднання замість миттєвої відповіді з пулу, і це валило readiness/
+# liveness проби петклиника.
+#
+# Sidecar (а не правка Service) - тому що Service належить оператору й буде
+# відкочений при наступній звірці CRD PostgresCluster. Явно фіксуємо
+# протокол TCP лише для 5432 на petclinic-primary; другий egress-запис без
+# port - обов'язковий catch-all: щойно в Sidecar з'являється хоч один
+# egress з явним port, дефолтний "дозволити все" зникає, і без catch-all
+# under зламаються решта вихідних з'єднань пода (istiod, DNS, інші
+# сервіси).
+apiVersion: networking.istio.io/v1
+kind: Sidecar
+metadata:
+  name: petclinic-db-force-tcp
+  namespace: petclinic
+spec:
+  egress:
+    - port:
+        number: 5432
+        protocol: TCP
+        name: tcp-postgres
+      hosts:
+        - "./petclinic-primary.petclinic.svc.cluster.local"
+    - hosts:
+        - "*/*"
