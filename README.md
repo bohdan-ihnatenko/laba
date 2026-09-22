@@ -219,6 +219,28 @@ settings → GitHub Apps, права Actions: Read-only + Administration:
 Read and write) — Terraform'ом це не автоматизується, креди (app-id,
 installation-id, private-key) лежать у Vault (`secret/arc/github-app`).
 
+**Istio service mesh (mTLS).** Три окремі ArgoCD Application, той самий
+паттерн, що й з іншими операторами: `istio-base` (CRD, wave `-1`) →
+`istiod` (control-plane, wave `0`) → `istio-mesh-namespaces` (лейбл
+`istio-injection: enabled` + `PeerAuthentication` з `mode: STRICT`, wave
+`1`). Sidecar-injection НЕ глобальна: лейбл виставлено поки лише на
+`vault` і `external-secrets` — найчутливіший у стенді хоп (ESO по мережі
+читає секрети з Vault); решту неймспейсів (petclinic, monitoring,
+logging) свідомо не чіпали, бо в подів CrunchyData/ARC із сайдкаром
+відомі свої гоцики (init-ordering, привілейовані контейнери) — тестувати
+варто по одному неймспейсу за раз, а не одразу на весь кластер.
+
+**Чесно:** інжекція сайдкара відбувається лише при СТВОРЕННІ пода, не
+ретроактивно — лейбл на неймспейс сам по собі не додає `istio-proxy` в
+уже запущені поди. `vault`/`external-secrets` живуть 7 днів, лейбл на
+них повісили щойно, тож поки поди там не перезапущені вручну
+(`kubectl rollout restart deployment/statefulset ...`), `istio-proxy` в
+них, найімовірніше, ще немає — і mTLS фактично не діє, хоч ArgoCD і
+показує `Synced`/`Healthy` (це стан GitOps-об'єктів, а не факт наявності
+сайдкара в поді). Перевірити:
+`kubectl -n vault get pod <під> -o jsonpath='{.spec.containers[*].name}'`
+— серед контейнерів має з'явитися `istio-proxy`.
+
 ## Що ламалося і як лагодили
 
 - **Elasticsearch вічний `yellow` / ArgoCD вічний `Progressing`.**
@@ -265,6 +287,28 @@ installation-id, private-key) лежать у Vault (`secret/arc/github-app`).
   ліміт 262144 байт анотації `last-applied-configuration` при client-side
   apply. Всюди, де це актуально, у Application виставлено
   `syncOptions: [ServerSideApply=true]`.
+- **Helm-чарт Istio `1.31.1` не тягнувся: `helm pull` падав з
+  `error fetching chart`.** istio.io анонсує `1.31.1` як GA, але реальний
+  Helm-репозиторій (`istio-release.storage.googleapis.com/charts/index.yaml`)
+  на момент розгортання мав опубліковану лише `1.31.0-rc.0` для чартів
+  `base`/`istiod` — публікація чартів відстає від GitHub-релізу.
+  Запінили `targetRevision` на `1.31.0-rc.0` в обох Application
+  (`gitops/x-system/apps/istio-base.yaml`, `istiod.yaml`); коли в індексі
+  з'явиться стабільний `1.31.0`/`1.31.1` — оновити в обох файлах.
+- **`istiod` тримав свої `ValidatingWebhookConfiguration`/
+  `MutatingWebhookConfiguration` вічно `OutOfSync`.** istiod сам патчить
+  `caBundle` (ротація сертифікатів) і `failurePolicy` (fail-open, поки
+  сам не підтвердить готовність) на трьох вебхуках —
+  `istiod-default-validator` (чарт `base`), `istio-validator-istio-system`
+  і `istio-sidecar-injector` (чарт `istiod`) — через окремий SSA
+  field-manager `pilot-discovery`, незалежно від того, що написано в
+  git/чарті. Той самий клас дрейфу, що й `--mtu` в `dind` та лейбли
+  `AutoscalingListener` вище: додали `ignoreDifferences` на
+  `/webhooks/0/failurePolicy` і `/webhooks/0/clientConfig/caBundle` в
+  обох Application. Якщо `failurePolicy` стабільно висить в `Ignore`, а
+  не флапає назад у `Fail` - варто окремо перевірити готовність istiod
+  (`kubectl -n istio-system get pods,deploy istiod`), це може бути
+  сигналом, а не тільки косметика.
 
 ## Що було б інакше в реальному (не-локальному) середовищі
 
@@ -294,3 +338,10 @@ installation-id, private-key) лежать у Vault (`secret/arc/github-app`).
   реальному проєкті це означало б фактично розгорнутий і
   сконфігурований Image Updater (або його відсутність), а не просто
   обґрунтування в README.
+- **mTLS через Istio ввімкнено вибірково (лише `vault`+`external-secrets`),
+  не на всю мережу.** У проді це був би поетапний, але зрештою mesh-wide
+  rollout (`istio-injection: enabled` на всі неймспейси,
+  `PeerAuthentication` на весь `istio-system`/кластерний дефолт
+  `STRICT`), з окремим тестуванням кожного оператора на сумісність із
+  сайдкаром (init-контейнери, привілейовані поди ARC/dind, health-проби),
+  а не постійний вибірковий стан лише на двох неймспейсах.
