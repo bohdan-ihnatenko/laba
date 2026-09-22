@@ -87,6 +87,26 @@ spec:
                 secretKeyRef:
                   name: petclinic-vault-secrets
                   key: password
+            # HikariCP держит соединения к Postgres живыми дольше, чем
+            # хочет инфраструктура между нами и БД (после переезда
+            # petclinic в mesh - Envoy, дефолтный tcp_proxy idle_timeout
+            # ~1ч) - пул не знал об этом лимите и просто натыкался на уже
+            # закрытые сокеты при следующем запросе (HikariPool WARN
+            # "Failed to validate connection ... has been closed",
+            # 14-21с на восстановление пула = валит readiness/liveness).
+            # Ставим maxLifetime заметно меньше инфраструктурного лимита
+            # (10 мин), чтобы Hikari сам проактивно пересоздавал
+            # соединения ДО того, как их прибьёт снаружи - фикс на
+            # стороне приложения, не зависит от того, что стоит между
+            # нами и Postgres сейчас или в будущем.
+            #
+            # ВАЖНО про имя переменной: свойство
+            # spring.datasource.hikari.max-lifetime - дефис в "max-lifetime"
+            # по relaxed binding УДАЛЯЕТСЯ, а не заменяется на подчёркивание
+            # (тот же гоцик, что и с percentiles-histogram выше), поэтому
+            # SPRING_DATASOURCE_HIKARI_MAXLIFETIME, а не _MAX_LIFETIME.
+            - name: SPRING_DATASOURCE_HIKARI_MAXLIFETIME
+              value: "600000" # 10 минут в мс
           resources:
             requests:
               cpu: {{ .Values.resources.requests.cpu }}
