@@ -1,0 +1,15 @@
+syncWave: "-1" # CRD Istio (PeerAuthentication, VirtualService, Gateway і т.д.)
+# мають з'явитися раніше istiod і будь-яких CR, що на них спираються - той
+# самий паттерн, що й з eck-operator/postgres-operator/gateway-api-crds.
+project: default
+source:
+  repoURL: https://istio-release.storage.googleapis.com/charts
+  chart: base
+  targetRevision: "1.31.1" # перевірте актуальну: istio.io/latest/docs/setup/additional-setup/download-istio-release/
+destination:
+  namespace: istio-system
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true # CRD Istio великі - той самий паттерн, що й з
+      # ECK/postgres-operator/ARC/Gateway API (ліміт 262144 байт анотації
+      # last-applied-configuration при client-side apply).

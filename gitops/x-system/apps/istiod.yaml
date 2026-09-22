@@ -1,0 +1,36 @@
+syncWave: "0" # після istio-base (CRD вже стоять), до istio-mesh-namespaces
+project: default
+source:
+  repoURL: https://istio-release.storage.googleapis.com/charts
+  chart: istiod
+  targetRevision: "1.31.1"
+  helm:
+    values: |
+      # Дефолтний профіль istiod розрахований на реальний кластер (типово
+      # ~500m CPU / 2Gi memory запит на control-plane) - забагато для лаби на
+      # трьох k3d-нодах, де вже крутяться Vault/ESO/kube-prometheus-stack/
+      # ECK/ARC/postgres-operator. Урізаємо під розмір стенду.
+      pilot:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      # accessLogFile вимкнено (дефолт), щоб Envoy-сайдкари не плодили окремий
+      # потік логів на весь k8s-logs індекс - в лабі це шум, не сигнал.
+      #
+      # Sidecar-injection НЕ глобальна. Istio за замовчуванням інжектить
+      # сайдкар лише в неймспейси з лейблом istio-injection: enabled - у нас
+      # це gitops/manifests/istio-mesh (спочатку тільки vault +
+      # external-secrets, найчутливіший хоп ESO -> Vault). Розширювати на
+      # інші неймспейси (petclinic, monitoring, logging...) - окремий
+      # свідомий крок, не дефолт; у CrunchyData/ARC подів із сайдкаром
+      # відомі свої гоцики (init-ordering, привілейовані контейнери), краще
+      # це тестувати по одному неймспейсу за раз.
+destination:
+  namespace: istio-system
+syncPolicy:
+  extraSyncOptions:
+    - ServerSideApply=true

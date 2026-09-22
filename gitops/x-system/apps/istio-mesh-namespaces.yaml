@@ -1,0 +1,17 @@
+syncWave: "1" # після istiod - control-plane і mutating webhook мають вже
+# стояти, інакше лейбл на неймспейсі просто повисне без ефекту до першого
+# рестарту подів у ньому.
+project: default
+source:
+  # ВАЖЛИВО: той самий repoURL, що і gitops_repo_url в terraform.tfvars -
+  # це не helm-чарт, а тека з плоскими YAML в цьому ж репозиторії (той самий
+  # паттерн, що й gitops/manifests для ClusterSecretStore).
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/manifests/istio-mesh
+destination:
+  namespace: istio-system
+syncPolicy:
+  automated:
+    prune: true
+    selfHeal: true
