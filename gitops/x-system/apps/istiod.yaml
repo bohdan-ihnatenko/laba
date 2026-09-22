@@ -3,7 +3,7 @@ project: default
 source:
   repoURL: https://istio-release.storage.googleapis.com/charts
   chart: istiod
-  targetRevision: "1.31.1"
+  targetRevision: "1.31.0-rc.0"
   helm:
     values: |
       # Дефолтний профіль istiod розрахований на реальний кластер (типово

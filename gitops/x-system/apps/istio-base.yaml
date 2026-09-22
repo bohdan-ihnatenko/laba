@@ -5,7 +5,12 @@ project: default
 source:
   repoURL: https://istio-release.storage.googleapis.com/charts
   chart: base
-  targetRevision: "1.31.1" # перевірте актуальну: istio.io/latest/docs/setup/additional-setup/download-istio-release/
+  targetRevision: "1.31.0-rc.0" # istio.io анонсує 1.31.1 як GA, але в реальному
+    # Helm-репо (istio-release.storage.googleapis.com/charts/index.yaml) на
+    # момент цього коміту опубліковано лише 1.31.0-rc.0 - helm pull на 1.31.1
+    # падав з error fetching chart, бо такого чарта там просто не існує.
+    # Публікація чартів відстає від GitHub-релізу; коли зʼявиться стабільний
+    # 1.31.0/1.31.1 в індексі - оновити тут і в istiod.yaml.
 destination:
   namespace: istio-system
 syncPolicy:
