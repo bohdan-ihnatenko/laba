@@ -11,3 +11,10 @@ metadata:
   name: external-secrets
   labels:
     istio-injection: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: petclinic
+  labels:
+    istio-injection: enabled
