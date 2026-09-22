@@ -13,6 +13,26 @@ source:
     # 1.31.0/1.31.1 в індексі - оновити тут і в istiod.yaml.
 destination:
   namespace: istio-system
+# istiod (manager pilot-discovery) сам патчить caBundle і failurePolicy
+# ValidatingWebhookConfiguration istiod-default-validator через окремий
+# SSA field-manager (видно в managedFields живого об'єкта) - незалежно від
+# того, що лежить у чарті/git. failurePolicy істіод виставляє в Ignore,
+# поки сам не підтвердить, що validation-ендпойнт живий і справний (fail
+# open, а не fail closed, на старті/при проблемах з готовністю) - той самий
+# клас дрейфу, що й --mtu у dind (dind-mtu-patch-job.yaml) та лейбли
+# AutoscalingListener в arc-runner-set: контролер поза Helm/git володіє
+# конкретним полем, і ArgoCD тягне його назад до дефолту чарта (Fail) на
+# кожному selfHeal, а istiod тут-таки повертає Ignore - вічний OutOfSync
+# без реальної поломки. Якщо ж тут стабільно Ignore (а не флапає в Fail) -
+# це ще й сигнал самому перевірити готовність istiod (`kubectl -n
+# istio-system get pods,deploy istiod`, логи), а не тільки косметика.
+ignoreDifferences:
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: istiod-default-validator
+    jsonPointers:
+      - /webhooks/0/failurePolicy
+      - /webhooks/0/clientConfig/caBundle
 syncPolicy:
   extraSyncOptions:
     - ServerSideApply=true # CRD Istio великі - той самий паттерн, що й з
