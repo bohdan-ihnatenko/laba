@@ -52,6 +52,13 @@ resource "grafana_rule_group" "petclinic" {
     annotations = {
       summary     = "PetClinic отдаёт 5xx-ответы (проверь /oups как источник демо-ошибки)"
       runbook_url = "https://github.com/bohdan-ihnatenko/laba"
+      # Служебные аннотации Grafana: по ним она сама строит deep-link в
+      # тайтле уведомления на конкретную панель, а не на страницу правила.
+      # panelId=2 - id панели "Error rate (5xx / total)" в
+      # dashboards/petclinic-overview.json; если панели в дашборде
+      # переставить/удалить, id нужно свериить заново.
+      __dashboardUid__ = grafana_dashboard.petclinic_overview.uid
+      __panelId__       = "2"
     }
 
     labels = {

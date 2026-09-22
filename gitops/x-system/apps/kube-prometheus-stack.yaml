@@ -41,6 +41,15 @@ source:
           existingSecret: grafana-admin-credentials
           userKey: admin-user
           passwordKey: admin-password
+        # Без явного root_url Grafana подставляет в уведомления (Source/
+        # Silence в Slack, ссылку в тайтле алерта) дефолтный
+        # http://localhost:3000 из образа - это адрес пода изнутри кластера,
+        # снаружи (в Slack) по нему никуда не попасть. root_url должен
+        # совпадать с тем, что реально резолвится снаружи (см.
+        # gitops/routes/grafana.yaml).
+        grafana.ini:
+          server:
+            root_url: "https://grafana.hydranoid.site"
 destination:
   namespace: monitoring
 syncPolicy:
