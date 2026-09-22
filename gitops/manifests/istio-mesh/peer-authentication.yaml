@@ -18,9 +18,17 @@ spec:
 ---
 apiVersion: security.istio.io/v1
 kind: PeerAuthentication
+# Не strict-mtls: PERMISSIVE, не STRICT. Traefik (ns traefik, свідомо поза
+# mesh - межа кластера) ходить у petclinic звичайним plaintext HTTP, у
+# нього немає сертифіката від istiod. STRICT тут ламає зовнішній доступ
+# рівно так само, як наш власний curl-тест без сайдкара ламався навмисно
+# (див. компонент Istio в README) - тільки цього разу "клієнтом без
+# сайдкара" виявився сам інгрес. PERMISSIVE приймає і mTLS (petclinic ->
+# petclinic-db, обидва вже в mesh), і plaintext (Traefik -> petclinic)
+# одночасно.
 metadata:
-  name: strict-mtls
+  name: permissive-mtls
   namespace: petclinic
 spec:
   mtls:
-    mode: STRICT
+    mode: PERMISSIVE

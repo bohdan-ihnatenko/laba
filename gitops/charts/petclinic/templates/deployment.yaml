@@ -120,9 +120,13 @@ spec:
               port: http
             initialDelaySeconds: 60
             periodSeconds: 10
+            timeoutSeconds: 5 # дефолт k8s - 1с, замало для JVM: перший
+              # запит лінива ініціалізація DispatcherServlet + можлива
+              # затримка sidecar встигали зловити один такий таймаут
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: http
             initialDelaySeconds: 90
             periodSeconds: 15
+            timeoutSeconds: 5
