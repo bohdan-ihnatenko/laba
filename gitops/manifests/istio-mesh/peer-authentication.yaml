@@ -1,0 +1,39 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+# Namespace-default STRICT, с исключением только на порт 8200 (Vault UI/API).
+# Traefik (ns traefik, сознательно вне mesh) ходит сюда HTTPRoute'ом
+# vault.hydranoid.site -> vault:8200 обычным plaintext HTTP и сертификата
+# от istiod не имеет - без этого исключения внешний доступ к веб-морде
+# Vault ломается так же, как собственный curl-тест без сайдкара ломался
+# намеренно (см. компонент Istio в README). portLevelMtls сужает исключение
+# ровно до этого порта: ESO -> Vault (оба уже в mesh) всё равно пойдёт
+# mTLS'ом по умолчанию (auto mTLS, ISTIO_MUTUAL) - этот порт ДОПОЛНИТЕЛЬНО
+# принимает и plaintext, а не заменяет mTLS на нём.
+metadata:
+  name: strict-mtls
+  namespace: vault
+spec:
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    8200:
+      mode: PERMISSIVE
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+# Тот же паттерн, что и в vault: namespace-default STRICT, исключение
+# только на 10250 - дефолтный порт validating/mutating webhook чарта
+# external-secrets (валидация CRD ExternalSecret/SecretStore). Этот порт
+# напрямую дёргает kube-apiserver при каждом apply/update ExternalSecret,
+# а apiserver тоже вне mesh и mTLS-сертификата не имеет; без исключения
+# STRICT тут выглядел бы не как сетевая ошибка ESO, а как зависшие
+# admission-запросы на любой ExternalSecret в кластере.
+metadata:
+  name: strict-mtls
+  namespace: external-secrets
+spec:
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    10250:
+      mode: PERMISSIVE

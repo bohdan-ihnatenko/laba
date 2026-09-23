@@ -15,3 +15,9 @@ source:
         name: external-secrets
 destination:
   namespace: external-secrets
+syncPolicy:
+  # См. комментарий в apps/vault.yaml - тот же безопасный способ повесить
+  # лейбл на неймспейс без риска каскадного прун-удаления самого неймспейса.
+  managedNamespaceMetadata:
+    labels:
+      istio-injection: enabled

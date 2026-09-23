@@ -1,0 +1,17 @@
+syncWave: "1" # после istiod - control-plane и mutating webhook должны уже
+# стоять, иначе PeerAuthentication просто повиснет без эффекта до первого
+# рестарта подов в неймспейсе.
+project: default
+source:
+  # ВАЖНО: тот же repoURL, что и gitops_repo_url в terraform.tfvars - это
+  # не Helm-чарт, а папка с плоскими YAML в этом же репозитории (тот же
+  # паттерн, что и gitops/manifests для ClusterSecretStore).
+  repoURL: https://github.com/bohdan-ihnatenko/laba.git
+  targetRevision: main
+  path: gitops/manifests/istio-mesh
+destination:
+  namespace: istio-system
+syncPolicy:
+  automated:
+    prune: true
+    selfHeal: true

@@ -48,6 +48,10 @@ spec:
     automated:
       prune: {{ dig "syncPolicy" "automated" "prune" true $app }}
       selfHeal: {{ dig "syncPolicy" "automated" "selfHeal" true $app }}
+    {{- with dig "syncPolicy" "managedNamespaceMetadata" "" $app }}
+    managedNamespaceMetadata:
+{{ toYaml . | indent 6 }}
+    {{- end }}
     syncOptions:
       - CreateNamespace=true
       {{- range dig "syncPolicy" "extraSyncOptions" (list) $app }}

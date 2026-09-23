@@ -39,3 +39,15 @@ source:
         enabled: false
 destination:
   namespace: vault
+syncPolicy:
+  # Лейбл через managedNamespaceMetadata, а не отдельным Application с
+  # полноценным объектом Namespace (как было раньше в istio-mesh-namespaces).
+  # managedNamespaceMetadata просто патчит метадату на неймспейс, который и
+  # так создаёт CreateNamespace=true у этого же Application - ArgoCD НЕ
+  # берёт Namespace как отдельный трекаемый/прунимый ресурс. Именно
+  # прун полноценного Namespace-объекта из отдельного Application снёс
+  # сегодня vault/external-secrets/petclinic целиком при удалении того
+  # Application - см. инцидент 2026-09-23.
+  managedNamespaceMetadata:
+    labels:
+      istio-injection: enabled
