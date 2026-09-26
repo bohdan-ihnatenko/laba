@@ -24,3 +24,15 @@ resource "grafana_data_source" "petclinic_prometheus" {
     httpMethod = "POST"
   })
 }
+
+# Infinity (yesoreyeram-infinity-datasource) - плагин ставится через Helm
+# values Grafana (gitops/x-system/apps/kube-prometheus-stack.yaml), тут
+# только заводим сам датасорс без конкретных query-параметров - они
+# настраиваются per-query прямо в Grafana при создании панели/дашборда.
+resource "grafana_data_source" "petclinic_infinity" {
+  org_id = grafana_organization.petclinic.id
+
+  name = "infinity"
+  type = "yesoreyeram-infinity-datasource"
+  uid  = "petclinic-infinity"
+}

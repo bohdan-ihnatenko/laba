@@ -33,6 +33,12 @@ source:
         image:
           repository: grafana/grafana
           tag: "13.1.1"
+        # Infinity datasource plugin - позволяет ходить датасорсом в
+        # произвольные REST/JSON/CSV/GraphQL источники без написания
+        # отдельного бэкенда. Плагин подписан, allow_loading_unsigned_plugins
+        # не нужен.
+        plugins:
+          - yesoreyeram-infinity-datasource
         persistence:
           enabled: true
           storageClassName: local-path
