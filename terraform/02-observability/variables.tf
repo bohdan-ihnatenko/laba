@@ -15,3 +15,9 @@ variable "slack_webhook" {
   type = string
   sensitive = true
 }
+
+variable "pagerduty_token" {
+  description = "PagerDuty API token (v2 REST API) для датасорса Infinity, который ходит в https://api.pagerduty.com"
+  type        = string
+  sensitive   = true
+}

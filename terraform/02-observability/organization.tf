@@ -36,3 +36,26 @@ resource "grafana_data_source" "petclinic_infinity" {
   type = "yesoreyeram-infinity-datasource"
   uid  = "petclinic-infinity"
 }
+
+# Отдельный инстанс Infinity под PagerDuty REST API - allowedHosts запирает
+# датасорс так, чтобы им нельзя было сходить куда-то ещё кроме PagerDuty
+# (по образцу того, что было заведено на работе через terragrunt).
+resource "grafana_data_source" "petclinic_infinity_pagerduty" {
+  org_id = grafana_organization.petclinic.id
+
+  name = "infinity-pagerduty"
+  type = "yesoreyeram-infinity-datasource"
+  uid  = "petclinic-infinity-pagerduty"
+
+  json_data_encoded = jsonencode({
+    auth_method      = "apiKey"
+    apiKeyKey        = "Authorization"
+    apiKeyType       = "header"
+    allowedHosts     = ["https://api.pagerduty.com"]
+    timeoutInSeconds = 120
+  })
+
+  secure_json_data_encoded = jsonencode({
+    apiKeyValue = "Token token=${var.pagerduty_token}"
+  })
+}
